@@ -8,6 +8,7 @@ import tempfile
 
 from mlflow.utils.autologging_utils import try_mlflow_log
 from pytorch_lightning.callbacks import EarlyStopping
+from pytorch_lightning.core.memory import ModelSummary
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -63,7 +64,7 @@ def autolog(every_n_iter=1):
                                 mlflow.log_param, "epsilon", defaults_dict["eps"]
                             )
 
-            summary = str(trainer.model.summarize("full"))
+            summary = str(ModelSummary(pl_module, mode="full"))
             tempdir = tempfile.mkdtemp()
             try:
                 summary_file = os.path.join(tempdir, "model_summary.txt")
