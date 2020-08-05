@@ -21,6 +21,7 @@ class TorchServePlugin(BaseDeploymentClient):
             version=self.server_config["version"],
             model_file=self.server_config["model_file"],
             handler_file=self.server_config["handler_file"],
+            extra_files=self.server_config["extra_files"],
             model_uri=model_uri,
         )
 
@@ -73,7 +74,7 @@ class TorchServePlugin(BaseDeploymentClient):
         return resp.text
 
     def generate_mar_file(
-        self, model_name, version, model_file, handler_file, model_uri
+        self, model_name, version, model_file, handler_file, extra_files, model_uri
     ):
         export_path = self.server_config["export_path"]
         if export_path:
@@ -90,6 +91,9 @@ class TorchServePlugin(BaseDeploymentClient):
                 model_name, version, model_file, model_uri, handler_file, model_store
             )
         )
+        if extra_files:
+            cmd = "{} --extra-files {}".format(cmd, extra_files)
+
         return_code = os.system(cmd)
         if return_code != 0:
             _logger.error(
