@@ -2,17 +2,10 @@ import logging
 import os
 import requests
 from mlflow.deployments import BaseDeploymentClient
+from mlflow.deployments import get_deploy_client
+from mlflow.pytorch.torchserve.deploy.config import Config
 
 _logger = logging.getLogger(__name__)
-
-
-class Config(dict):
-    def __init__(self):
-        super().__init__()
-        self["version"] = os.environ.get("VERSION")
-        self["model_file"] = os.environ.get("MODEL_FILE")
-        self["handler_file"] = os.environ.get("HANDLER_FILE")
-        self["export_path"] = os.environ.get("EXPORT_PATH")
 
 
 class TorchServePlugin(BaseDeploymentClient):
@@ -31,14 +24,10 @@ class TorchServePlugin(BaseDeploymentClient):
             model_uri=model_uri,
         )
 
-        return self.register_model(mar_file_path=mar_file_path)
-
-    def update_deployment(self, name, model_uri=None, flavor=None, config=None):
-        url = "{}/{}/{}?{}".format(self.management_api, "models", name, "min_worker=3")
-        resp = requests.put(url)
-        if resp.status_code != 200:
-            raise Exception("Unable to list deployments")
-        return resp.text
+        self.register_model(
+            mar_file_path=mar_file_path, name=name, model_uri=model_uri, flavor=flavor
+        )
+        return {"name": name, "flavor": flavor}
 
     def delete_deployment(self, name):
         version = self.server_config["version"]
@@ -46,21 +35,31 @@ class TorchServePlugin(BaseDeploymentClient):
         resp = requests.delete(url)
         if resp.status_code != 200:
             raise Exception("Unable to list deployments")
-        return resp.text
+        return None
+
+    def update_deployment(self, name, model_uri=None, flavor=None, config=None):
+        url = "{}/{}/{}?{}".format(self.management_api, "models", name, "min_worker=3")
+        resp = requests.put(url)
+        print("\n\n")
+        print(resp.status_code)
+        print("\n\n")
+        if resp.status_code != 202:
+            print("Unable to list deployments")
+        return {"flavor": flavor}
 
     def list_deployments(self):
         url = "{}/{}".format(self.management_api, "models")
         resp = requests.get(url)
         if resp.status_code != 200:
             raise Exception("Unable to list deployments")
-        return resp.text
+        return [resp.text]
 
     def get_deployment(self, name):
         url = "{}/{}/{}".format(self.management_api, "models", name)
         resp = requests.get(url)
         if resp.status_code != 200:
             raise Exception("Unable to list deployments")
-        return resp.text
+        return {"deploy": resp.text}
 
     def predict(self, deployment_name, data):
         version = self.server_config["version"]
@@ -107,22 +106,16 @@ class TorchServePlugin(BaseDeploymentClient):
                 print("{} file generated successfully".format(mar_file))
         return mar_file
 
-    def register_model(self, mar_file_path):
+    def register_model(self, mar_file_path, name, model_uri=None, flavor=None):
         url = "{}/{}?url={}".format(self.management_api, "models", mar_file_path)
         resp = requests.post(url=url)
         if resp.status_code != 200:
             raise Exception("Unable to register the model")
         else:
-            return True
+            self.update_deployment(name, model_uri=model_uri, flavor=flavor)
+        return True
 
 
-if __name__ == "__main__":
-    torch_serve_url = "http://localhost:8080"
-    TorchServePlugin(uri=torch_serve_url).create_deployment(
-        name="MODEL_NAME", model_uri="MODEL_URI_PATH"
-    )
-    TorchServePlugin(uri=torch_serve_url).update_deployment(name="MODEL_NAME")
-    TorchServePlugin(uri=torch_serve_url).list_deployments()
-    TorchServePlugin(uri=torch_serve_url).get_deployment("MODEL_NAME")
-    TorchServePlugin(uri=torch_serve_url).delete_deployment("MODEL_NAME")
-    TorchServePlugin(uri=torch_serve_url).predict("MODEL_NAME", "INPUT")
+def run_local(name, model_uri=None, flavor=None, config=None):
+    client = get_deploy_client("torchserve")
+    print(client.predict(name, config["data"]))
