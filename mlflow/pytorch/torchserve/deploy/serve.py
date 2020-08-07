@@ -2,7 +2,6 @@ import logging
 import os
 import requests
 from mlflow.deployments import BaseDeploymentClient
-from mlflow.deployments import get_deploy_client
 from mlflow.pytorch.torchserve.deploy.config import Config
 import json
 
@@ -86,15 +85,29 @@ class TorchServePlugin(BaseDeploymentClient):
             raise Exception("Unable to list deployments")
         return {"deploy": resp.text}
 
-    def predict(self, deployment_name, data):
+    def predict(self, deployment_name, input, output=None):
         version = self.server_config["version"]
+        inp_path = str(input[0])
+        if os.path.exists(inp_path):
+            with open(inp_path, "r") as f:
+                given_input = json.loads(f.read())
+        else:
+            raise Exception("Input file not found")
         url = "{}/{}/{}/{}".format(
             self.inference_api, "predictions", deployment_name, version
         )
-        data = {"data": data}
-        resp = requests.post(url, data)
+        resp = requests.post(url, given_input)
         if resp.status_code != 200:
-            raise Exception("Unable to list deployments")
+            raise Exception("Unable to infer the results")
+
+        if output is not None and len(output) != 0:
+            output_path = str(output[0])
+            if os.path.exists(output_path):
+                with open(output_path + "/output.json", "w") as fp:
+                    json.dump({"result": resp.text}, fp)
+            else:
+                with open("output.json", "w") as fp:
+                    json.dump({"result": resp.text}, fp)
         return resp.text
 
     def generate_mar_file(
@@ -147,18 +160,32 @@ class TorchServePlugin(BaseDeploymentClient):
 def run_local(name, model_uri, flavor=None, config=None):
     pass
 
-def target_help():
-    pass
 
-def predict_result(name, model_uri, input, output=None):
-    client = get_deploy_client('torchserve')
-    inp_path = str(input[0])
-    if os.path.exists(inp_path):
-        with open(inp_path, "r") as f:
-            given_input = json.loads(f.read())
-        result = client.predict(name, given_input['data'])
-        if output is None:
-            print("Result is: {}".format(result))
-        return True
-    else:
-        return False
+def target_help():
+    help_string = (
+        "\nmlflow-torchserve plugin integrates torchserve to mlflow deployment pipeline. "
+        "For detailed explanation and to see multiple examples, checkout the Readme at "
+        "README mlflow\pytorch\torchserve\README.md \n\n"
+        "Following are the various options available using the existing mlflow deployments functions\n\n"
+        "CREATE: \n"
+        "Deploy the model at 'model_uri' to the specified target.\n"
+        "Additional plugin-specific arguments may also be passed to this command, via -C key=value\n\n"
+        "UPDATE: \n"
+        "Update the deployment with ID 'deployment_id' in the specified target.\n"
+        "You can update the URI of the model and/or the flavor of the deployed model (in which case the model URI must also be specified).\n"
+        "Additional plugin-specific arguments may also be passed to this command, via '-C key=value'.\n\n"
+        "DELETE: \n"
+        "Delete the deployment with name given at '--name' from the specified target.\n\n"
+        "LIST: \n"
+        "List the names of all model deployments in the specified target. These names can be used with the 'delete', 'update', and 'get' commands.\n\n"
+        "GET: \n"
+        "Print a detailed description of the deployment with name given at '--name' in the specified target.\n\n"
+        "HELP: \n"
+        "Display additional help for a specific deployment target, e.g. info on target-specific config options and the target's URI format.\n\n"
+        "RUN-LOCAL: \n"
+        "Deploy the model locally. This has very similar signature to 'create' API\n\n"
+        "PREDICT: \n"
+        "Predict the results for the deployed model for the given input(s)\n\n"
+    )
+
+    return help_string

@@ -48,6 +48,12 @@ parse_custom_arguments = click.option("--config", "-C", metavar="NAME=VALUE", mu
                                            "documentation/help for your deployment target for a "
                                            "list of supported config options.")
 
+parse_input = click.option("--input", "-I",  required=True, multiple=True,
+                                      help="Path to the input file either can be json / csv / text")
+
+parse_output = click.option("--output", "-O", multiple=True,
+                                      help="Path to the output file. This is optional, if not given it will be printed in stdout")
+
 
 @click.group("deployments", help="""
     Deploy MLflow models to custom targets.
@@ -187,3 +193,19 @@ def run_local(flavor, model_uri, target, name, config):
     """
     config_dict = _user_args_to_dict(config)
     interface.run_local(target, name, model_uri, flavor, config_dict)
+
+
+@commands.command("predict")
+@deployment_name
+@target_details
+@parse_input
+@parse_output
+def predict(target, name, input, output):
+    """
+    Predict the results for the deployed model for the given input(s)
+    """
+    client = interface.get_deploy_client(target)
+    result = client.predict(name, input, output)
+    click.echo("\n")
+    click.echo("RESULT IS: {}".format(result))
+    click.echo("\n")
