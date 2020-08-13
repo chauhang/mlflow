@@ -5,11 +5,15 @@
 # pytorch-lightning (using pip install pytorch-lightning)
 #       and mlflow (using pip install mlflow).
 #
-import mlflow
 import pytorch_lightning as pl
+import os
 import torch
-from mlflow.pytorch.pytorch_lightning import autolog
-from mlflow.utils.autologging_utils import try_mlflow_log
+from argparse import ArgumentParser
+from mlflow.pytorch.pytorch_autolog import __MLflowPLCallback
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import LearningRateLogger
+from pytorch_lightning.logging import MLFlowLogger
 from sklearn.metrics import accuracy_score
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
@@ -107,15 +111,14 @@ class LightningMNISTClassifier(pl.LightningModule):
         x, y = val_batch
         logits = self.forward(x)
         loss = self.cross_entropy_loss(logits, y)
-        return {"val_loss": loss}
+        return {"val_step_loss": loss}
 
     def validation_epoch_end(self, outputs):
         """
         Computes average validation accuracy
         """
-        avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
-        tensorboard_logs = {"val_loss": avg_loss}
-        return {"avg_val_loss": avg_loss, "log": tensorboard_logs}
+        avg_loss = torch.stack([x["val_step_loss"] for x in outputs]).mean()
+        return {"val_loss": avg_loss}
 
     def test_step(self, test_batch, batch_idx):
         """
@@ -185,15 +188,35 @@ class LightningMNISTClassifier(pl.LightningModule):
         """
         Creates and returns Optimizer
         """
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.args["lr"])
-        return optimizer
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.args["lr"])
+        self.scheduler = {
+            "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
+                self.optimizer,
+                mode="min",
+                factor=0.2,
+                patience=2,
+                min_lr=1e-6,
+                verbose=True,
+            )
+        }
+        return [self.optimizer], [self.scheduler]
+
+    def optimizer_step(
+        self,
+        epoch,
+        batch_idx,
+        optimizer,
+        optimizer_idx,
+        second_order_closure=None,
+        on_tpu=False,
+        using_lbfgs=False,
+        using_native_amp=False,
+    ):
+        self.optimizer.step()
+        self.optimizer.zero_grad()
 
 
 if __name__ == "__main__":
-    mlflow.tracking.set_tracking_uri("http://IP:5000/")
-    if not mlflow.active_run():
-        try_mlflow_log(mlflow.start_run)
-
     parser = ArgumentParser(description="PyTorch Lightning Mnist Example")
 
     # Add trainer specific arguments
@@ -214,9 +237,28 @@ if __name__ == "__main__":
     args = parser.parse_args()
     dict_args = vars(args)
     model = LightningMNISTClassifier(**dict_args)
-    trainer = pl.Trainer.from_argparse_args(args)
-    autolog(every_n_iter=2)
-    trainer.fit(model)
-    trainer.test(model)
+    mlflow_logger = MLFlowLogger(
+        experiment_name="EXPERIMENT_NAME", tracking_uri="http://IP:PORT/"
+    )
+    early_stopping = EarlyStopping(monitor="val_loss", mode="min", verbose=True)
 
-    try_mlflow_log(mlflow.end_run)
+    checkpoint_callback = ModelCheckpoint(
+        filepath=os.getcwd(),
+        save_top_k=1,
+        verbose=True,
+        monitor="val_loss",
+        mode="min",
+        prefix="",
+    )
+    lr_logger = LearningRateLogger()
+
+    trainer = pl.Trainer.from_argparse_args(
+        args,
+        logger=mlflow_logger,
+        callbacks=[__MLflowPLCallback(), lr_logger],
+        early_stop_callback=early_stopping,
+        checkpoint_callback=checkpoint_callback,
+        train_percent_check=0.1,
+    )
+    trainer.fit(model)
+    trainer.test()
