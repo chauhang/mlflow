@@ -11,7 +11,7 @@ f_flavor = None
 f_model_uri = "./linear.pt"
 
 env_version = "1.0"
-env_model_file = "./LinearRegression.py"
+env_model_file = "./linear_model.py"
 env_handler_file = "./linear_handler.py"
 sample_input_file = "./sample.json"
 

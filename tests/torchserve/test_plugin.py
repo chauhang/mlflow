@@ -37,7 +37,6 @@ def test_mandatory_params_missing():
     os.environ["HANDLER_FILE"] = env_handler_file
 
 
-@pytest.mark.large
 def test_create_deployment_success():
     client = deployments.get_deploy_client(f_target)
     ret = client.create_deployment(f_deployment_id, f_model_uri, f_flavor, config={})
