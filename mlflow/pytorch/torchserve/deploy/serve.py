@@ -4,6 +4,8 @@ import requests
 from mlflow.deployments import BaseDeploymentClient
 from deploy.config import Config
 import json
+from pathlib import Path
+from mlflow.tracking.artifact_utils import _download_artifact_from_uri
 
 _logger = logging.getLogger(__name__)
 
@@ -17,7 +19,6 @@ class TorchServePlugin(BaseDeploymentClient):
         super(TorchServePlugin, self).__init__(target_uri=uri)
         self.server_config = Config()
         self.inference_api, self.management_api = self.get_torch_serve_port()
-        self.validate_mandatory_arguments()
 
     def get_torch_serve_port(self):
         """
@@ -56,7 +57,7 @@ class TorchServePlugin(BaseDeploymentClient):
         """
         Deploy the model at the model_uri to the specified target
         """
-
+        self.validate_mandatory_arguments()
         mar_file_path = self.generate_mar_file(
             model_name=name,
             version=self.server_config["version"],
@@ -170,6 +171,10 @@ class TorchServePlugin(BaseDeploymentClient):
         Generates mar file using the torch archiver in the specified model store path
         """
 
+        if not os.path.isfile(model_uri):
+            model_path = Path(_download_artifact_from_uri(model_uri))
+            model_uri = model_path
+
         export_path = self.server_config["export_path"]
         if export_path:
             model_store = export_path
@@ -212,7 +217,6 @@ class TorchServePlugin(BaseDeploymentClient):
         """
         query_path = mar_file_path
         if config is not None:
-
             for key in config:
                 query_path += "&" + key + "=" + str(config[key])
         else:
@@ -220,6 +224,7 @@ class TorchServePlugin(BaseDeploymentClient):
 
         url = "{}/{}?url={}".format(self.management_api, "models", query_path)
         resp = requests.post(url=url)
+
         if resp.status_code != 200:
             raise Exception("Unable to register the model")
         return True
