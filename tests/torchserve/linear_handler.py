@@ -1,6 +1,8 @@
+
+### IMPORTS SECTION ###
+
 import logging
 import os
-
 import numpy as np
 import torch
 from torch.autograd import Variable
@@ -8,6 +10,8 @@ from linear_model import LinearRegression
 
 logger = logging.getLogger(__name__)
 
+
+### CLASS DEFINITION ###
 
 class LinearRegressionHandler(object):
     def __init__(self):
@@ -17,6 +21,10 @@ class LinearRegressionHandler(object):
         self.initialized = False
 
     def initialize(self, ctx):
+        """
+        Loading the saved model from the serialized file
+        """
+
         properties = ctx.system_properties
         self.device = torch.device(
             "cuda:" + str(properties.get("gpu_id"))
@@ -42,6 +50,11 @@ class LinearRegressionHandler(object):
         self.initialized = True
 
     def preprocess(self, data):
+
+        """
+        Preprocess the input to tensor and reshape it to be used as input to the network
+        """
+
         data = data[0]
         number = float(data["data"])
         np_data = np.array(number, dtype=np.float32)
@@ -51,19 +64,35 @@ class LinearRegressionHandler(object):
 
     def inference(self, num):
 
+        """
+        Does inference / prediction on the preprocessed input and returns the output
+        """
+
         self.model.eval()
         inputs = Variable(num).to(self.device)
         outputs = self.model.forward(inputs)
         return [outputs.detach().item()]
 
     def postprocess(self, inference_output):
+
+        """
+        Does post processing on the output returned from the inference method
+        """
         return inference_output
 
+
+### CLASS INITIALIZATION ###
 
 _service = LinearRegressionHandler()
 
 
 def handle(data, context):
+
+    '''
+    Default handler for the inference api which takes two parameters data and context
+    and returns the predicted output
+    '''
+
     if not _service.initialized:
         _service.initialize(context)
 

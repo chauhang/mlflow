@@ -1,6 +1,11 @@
+
+#### IMPORTS SECTION ###
+
 import numpy as np
 import torch
 from torch.autograd import Variable
+
+### SYNTHETIC DATA PREPARATION ####
 
 x_values = [i for i in range(11)]
 
@@ -13,6 +18,9 @@ y_train = np.array(y_values, dtype=np.float32)
 y_train = y_train.reshape(-1, 1)
 
 
+
+### DEFINING THE NETWORK FOR REGRESSION ###
+
 class LinearRegression(torch.nn.Module):
     def __init__(self, inputSize, outputSize):
         super(LinearRegression, self).__init__()
@@ -22,20 +30,30 @@ class LinearRegression(torch.nn.Module):
         out = self.linear(x)
         return out
 
+### SECTION FOR HYPERPARAMETERS ###
 
 inputDim = 1
 outputDim = 1
 learningRate = 0.01
 epochs = 100
 
+
+### INITIALIZING THE MODEL ###
+
 model = LinearRegression(inputDim, outputDim)
 
-##### For GPU #######
+##### FOR GPU #######
 if torch.cuda.is_available():
     model.cuda()
 
+
+### INITIALIZING THE LOSS FUNCTION AND OPTIMIZER ###
+
 criterion = torch.nn.MSELoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=learningRate)
+
+
+### TRAINING STEP ###
 
 for epoch in range(epochs):
     # Converting inputs and labels to Variable
@@ -56,6 +74,8 @@ for epoch in range(epochs):
     print("epoch {}, loss {}".format(epoch, loss.item()))
 
 
+### EVALUATION AND PREDICTION ###
+
 with torch.no_grad():
     if torch.cuda.is_available():
         predicted = model(Variable(torch.from_numpy(x_train).cuda())).cpu().data.numpy()
@@ -63,4 +83,6 @@ with torch.no_grad():
         predicted = model(Variable(torch.from_numpy(x_train))).data.numpy()
     print(predicted)
 
+
+### SAVING THE MODEL ###
 torch.save(model.state_dict(), "linear.pt")
