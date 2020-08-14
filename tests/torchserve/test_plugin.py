@@ -36,14 +36,12 @@ def test_mandatory_params_missing():
 
     os.environ["HANDLER_FILE"] = env_handler_file
 
-
 def test_create_deployment_success():
     client = deployments.get_deploy_client(f_target)
     ret = client.create_deployment(f_deployment_id, f_model_uri, f_flavor, config={})
     assert isinstance(ret, dict)
     assert ret["name"] == f_deployment_id
     assert ret["flavor"] == f_flavor
-
 
 def test_list_success():
     client = deployments.get_deploy_client(f_target)
@@ -101,9 +99,12 @@ def test_create_wrong_model_exception():
 
 
 def test_create_mar_file_exception():
-    with pytest.raises(Exception, match="Unable to create mar file"):
+    with pytest.raises(Exception, match="No such file or directory"):
         client = deployments.get_deploy_client(f_target)
         client.create_deployment(f_deployment_id, f_dummy)
+        os.environ.pop("VERSION")
+        os.environ.pop("MODEL_FILE")
+        os.environ.pop("HANDLER_FILE")
 
 
 def test_update_file_exception():
