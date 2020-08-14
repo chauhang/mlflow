@@ -2,7 +2,7 @@ import logging
 import os
 import requests
 from mlflow.deployments import BaseDeploymentClient
-from mlflow.pytorch.torchserve.deploy.config import Config
+from deploy.config import Config
 import json
 
 _logger = logging.getLogger(__name__)
@@ -10,12 +10,19 @@ _logger = logging.getLogger(__name__)
 
 class TorchServePlugin(BaseDeploymentClient):
     def __init__(self, uri):
+
+        """
+        Initializes the deployment plugin and sets the environment variables
+        """
         super(TorchServePlugin, self).__init__(target_uri=uri)
         self.server_config = Config()
         self.inference_api, self.management_api = self.get_torch_serve_port()
         self.validate_mandatory_arguments()
 
     def get_torch_serve_port(self):
+        """
+        Reads through the config properties for torchserve inference and management api's
+        """
         config_properties = self.server_config["config_properties"]
         inference_port = "http://localhost:8080"
         management_port = "http://localhost:8081"
@@ -32,6 +39,10 @@ class TorchServePlugin(BaseDeploymentClient):
         return inference_port, management_port
 
     def validate_mandatory_arguments(self):
+        """
+        Validate the mandatory arguments is present if not raise exception
+        """
+
         if not self.server_config["version"]:
             raise Exception("Environment Variable VERSION - missing")
 
@@ -42,6 +53,10 @@ class TorchServePlugin(BaseDeploymentClient):
             raise Exception("Environment Variable HANDLER_FILE - missing")
 
     def create_deployment(self, name, model_uri, flavor=None, config=None):
+        """
+        Deploy the model at the model_uri to the specified target
+        """
+
         mar_file_path = self.generate_mar_file(
             model_name=name,
             version=self.server_config["version"],
@@ -52,11 +67,19 @@ class TorchServePlugin(BaseDeploymentClient):
         )
 
         self.register_model(
-            mar_file_path=mar_file_path, name=name, model_uri=model_uri, flavor=flavor
+            mar_file_path=mar_file_path,
+            name=name,
+            model_uri=model_uri,
+            flavor=flavor,
+            config=config,
         )
         return {"name": name, "flavor": flavor}
 
     def delete_deployment(self, name):
+        """
+        Delete the deployment with the name given at --name from the specified target
+        """
+
         version = self.server_config["version"]
         url = "{}/{}/{}/{}".format(self.management_api, "models", name, version)
         resp = requests.delete(url)
@@ -65,13 +88,32 @@ class TorchServePlugin(BaseDeploymentClient):
         return None
 
     def update_deployment(self, name, model_uri=None, flavor=None, config=None):
-        url = "{}/{}/{}?{}".format(self.management_api, "models", name, "min_worker=3")
+        """
+        Update the deployment with the name given at --name from the specified target
+
+        Using -C or --config additional parameters shall be updated for the corresponding model
+        """
+
+        query_path = ""
+
+        if config is not None:
+            for key in config:
+                query_path += "&" + key + "=" + str(config[key])
+
+            query_path = query_path[1:]
+
+        url = "{}/{}/{}?{}".format(self.management_api, "models", name, query_path)
         resp = requests.put(url)
+
         if resp.status_code != 202:
             raise Exception("Unable to list deployments")
         return {"flavor": flavor}
 
     def list_deployments(self):
+        """
+        List the names of all model deployments in the specified target. These names can be used with
+        delete , update and get commands
+        """
         url = "{}/{}".format(self.management_api, "models")
         resp = requests.get(url)
         if resp.status_code != 200:
@@ -79,6 +121,11 @@ class TorchServePlugin(BaseDeploymentClient):
         return [resp.text]
 
     def get_deployment(self, name):
+        """
+        Print the detailed description of the deployment with the name given at --name
+        in the specified target
+        """
+
         url = "{}/{}/{}".format(self.management_api, "models", name)
         resp = requests.get(url)
         if resp.status_code != 200:
@@ -86,6 +133,11 @@ class TorchServePlugin(BaseDeploymentClient):
         return {"deploy": resp.text}
 
     def predict(self, deployment_name, input, output=None):
+        """
+        Predict using the inference api with the input file that is been specified using -I or --input
+        and outputs the result to either stdout or specified file
+        """
+
         version = self.server_config["version"]
         inp_path = str(input[0])
         if os.path.exists(inp_path):
@@ -113,6 +165,11 @@ class TorchServePlugin(BaseDeploymentClient):
     def generate_mar_file(
         self, model_name, version, model_file, handler_file, extra_files, model_uri
     ):
+
+        """
+        Generates mar file using the torch archiver in the specified model store path
+        """
+
         export_path = self.server_config["export_path"]
         if export_path:
             model_store = export_path
@@ -147,13 +204,24 @@ class TorchServePlugin(BaseDeploymentClient):
                 print("{} file generated successfully".format(mar_file))
         return mar_file
 
-    def register_model(self, mar_file_path, name, model_uri=None, flavor=None):
-        url = "{}/{}?url={}".format(self.management_api, "models", mar_file_path)
+    def register_model(
+        self, mar_file_path, name, model_uri=None, flavor=None, config=None
+    ):
+        """
+        Register the model using the mar file that has been generated by the archiver
+        """
+        query_path = mar_file_path
+        if config is not None:
+
+            for key in config:
+                query_path += "&" + key + "=" + str(config[key])
+        else:
+            query_path += "&initial_workers=" + str(1)
+
+        url = "{}/{}?url={}".format(self.management_api, "models", query_path)
         resp = requests.post(url=url)
         if resp.status_code != 200:
             raise Exception("Unable to register the model")
-        else:
-            self.update_deployment(name, model_uri=model_uri, flavor=flavor)
         return True
 
 
