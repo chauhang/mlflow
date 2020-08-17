@@ -7,12 +7,10 @@ PyTorch (native) format
 :py:mod:`mlflow.pyfunc`
     Produced for use by generic pyfunc-based deployment tools and batch inference.
 """
-import importlib
 import logging
 import os
 import yaml
 
-import cloudpickle
 import numpy as np
 import pandas as pd
 
@@ -23,7 +21,6 @@ from mlflow.exceptions import MlflowException
 from mlflow.models import Model, ModelSignature
 from mlflow.models.model import MLMODEL_FILE_NAME
 from mlflow.models.utils import ModelInputExample, _save_example
-from mlflow.protos.databricks_pb2 import RESOURCE_DOES_NOT_EXIST
 from mlflow.pytorch import pickle_module as mlflow_pytorch_pickle_module
 from mlflow.tracking.artifact_utils import _download_artifact_from_uri
 from mlflow.utils.environment import _mlflow_conda_env
@@ -33,7 +30,6 @@ from mlflow.utils.model_utils import _get_flavor_configuration
 FLAVOR_NAME = "pytorch"
 
 _SERIALIZED_TORCH_MODEL_FILE_NAME = "model.pth"
-_PICKLE_MODULE_INFO_FILE_NAME = "pickle_module_info.txt"
 
 _logger = logging.getLogger(__name__)
 
@@ -50,12 +46,6 @@ def get_default_conda_env():
         additional_conda_deps=[
             "pytorch={}".format(torch.__version__),
             "torchvision={}".format(torchvision.__version__),
-        ],
-        additional_pip_deps=[
-            # We include CloudPickle in the default environment because
-            # it's required by the default pickle module used by `save_model()`
-            # and `log_model()`: `mlflow.pytorch.pickle_module`.
-            "cloudpickle=={}".format(cloudpickle.__version__)
         ],
         additional_conda_channels=[
             "pytorch",
@@ -172,7 +162,7 @@ def log_model(pytorch_model, artifact_path, conda_env=None, code_paths=None,
             mlflow.log_param("epochs", 500)
             mlflow.pytorch.log_model(model, "models")
     """
-    pickle_module = pickle_module or mlflow_pytorch_pickle_module
+    # Removed cloudpickle - picklemodule as pytorch - version 1.6 uses python's pickle for serialization
     Model.log(artifact_path=artifact_path, flavor=mlflow.pytorch, pytorch_model=pytorch_model,
               conda_env=conda_env, code_paths=code_paths, pickle_module=pickle_module,
               registered_model_name=registered_model_name,
@@ -262,7 +252,6 @@ def save_model(pytorch_model, path, conda_env=None, mlflow_model=None, code_path
             mlflow.pytorch.save_model(pytorch_model, pytorch_model_path)
     """
     import torch
-    pickle_module = pickle_module or mlflow_pytorch_pickle_module
 
     if not isinstance(pytorch_model, torch.nn.Module):
         raise TypeError("Argument 'pytorch_model' should be a torch.nn.Module")
@@ -292,11 +281,9 @@ def save_model(pytorch_model, path, conda_env=None, mlflow_model=None, code_path
     #
     # TODO: Stop persisting this information to the filesystem once we have a mechanism for
     # supplying the MLmodel configuration to `mlflow.pytorch._load_pyfunc`
-    pickle_module_path = os.path.join(model_data_path, _PICKLE_MODULE_INFO_FILE_NAME)
-    with open(pickle_module_path, "w") as f:
-        f.write(pickle_module.__name__)
     # Save pytorch model
     model_path = os.path.join(model_data_path, _SERIALIZED_TORCH_MODEL_FILE_NAME)
+    # Removed cloudpickle - picklemodule as pytorch - version 1.6 uses python's pickle for serialization
     torch.save(pytorch_model, model_path, pickle_module=pickle_module, **kwargs)
 
     conda_env_subpath = "conda.yaml"
@@ -318,8 +305,7 @@ def save_model(pytorch_model, path, conda_env=None, mlflow_model=None, code_path
     mlflow_model.add_flavor(
         FLAVOR_NAME, model_data=model_data_subpath, pytorch_version=torch.__version__)
     pyfunc.add_to_model(mlflow_model, loader_module="mlflow.pytorch", data=model_data_subpath,
-                        pickle_module_name=pickle_module.__name__, code=code_dir_subpath,
-                        env=conda_env_subpath)
+                        code=code_dir_subpath, env=conda_env_subpath)
     mlflow_model.save(os.path.join(path, MLMODEL_FILE_NAME))
 
 
@@ -332,28 +318,7 @@ def _load_model(path, **kwargs):
 
     if os.path.isdir(path):
         # `path` is a directory containing a serialized PyTorch model and a text file containing
-        # information about the pickle module that should be used by PyTorch to load it
         model_path = os.path.join(path, "model.pth")
-        pickle_module_path = os.path.join(path, _PICKLE_MODULE_INFO_FILE_NAME)
-        with open(pickle_module_path, "r") as f:
-            pickle_module_name = f.read()
-        if "pickle_module" in kwargs and kwargs["pickle_module"].__name__ != pickle_module_name:
-            _logger.warning(
-                "Attempting to load the PyTorch model with a pickle module, '%s', that does not"
-                " match the pickle module that was used to save the model: '%s'.",
-                kwargs["pickle_module"].__name__,
-                pickle_module_name)
-        else:
-            try:
-                kwargs["pickle_module"] = importlib.import_module(pickle_module_name)
-            except ImportError:
-                raise MlflowException(
-                    message=(
-                        "Failed to import the pickle module that was used to save the PyTorch"
-                        " model. Pickle module name: `{pickle_module_name}`".format(
-                            pickle_module_name=pickle_module_name)),
-                    error_code=RESOURCE_DOES_NOT_EXIST)
-
     else:
         model_path = path
 
