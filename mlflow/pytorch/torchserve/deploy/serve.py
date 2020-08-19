@@ -1,10 +1,12 @@
+import json
 import logging
 import os
-import requests
-from mlflow.deployments import BaseDeploymentClient
-from deploy.config import Config
-import json
 from pathlib import Path
+
+import requests
+
+from deploy.config import Config
+from mlflow.deployments import BaseDeploymentClient
 from mlflow.tracking.artifact_utils import _download_artifact_from_uri
 
 _logger = logging.getLogger(__name__)
@@ -66,7 +68,6 @@ class TorchServePlugin(BaseDeploymentClient):
             extra_files=self.server_config["extra_files"],
             model_uri=model_uri,
         )
-
         self.register_model(
             mar_file_path=mar_file_path,
             name=name,
@@ -170,10 +171,34 @@ class TorchServePlugin(BaseDeploymentClient):
         """
         Generates mar file using the torch archiver in the specified model store path
         """
+        valid_file_suffixes = [".pt", ".pth"]
 
         if not os.path.isfile(model_uri):
-            model_path = Path(_download_artifact_from_uri(model_uri))
-            model_uri = model_path
+            path = Path(_download_artifact_from_uri(model_uri))
+            model_config = path / "MLmodel"
+            if not model_config.exists():
+                raise Exception(
+                    "Failed to find MLmodel configuration within the specified model's root directory."
+                )
+            else:
+                model_path = None
+                if path.suffix in valid_file_suffixes:
+                    model_uri = path
+                else:
+                    for file in path.iterdir():
+                        if file.is_dir():
+                            for sub_files in file.iterdir():
+                                if sub_files.suffix in valid_file_suffixes:
+                                    model_path = sub_files
+                        else:
+                            if file.suffix in valid_file_suffixes:
+                                model_path = file
+                    if model_path is None:
+                        raise RuntimeError(
+                            "Model file does not have a valid suffix. Expected to be one of "
+                            + ", ".join(valid_file_suffixes)
+                        )
+                    model_uri = model_path
 
         export_path = self.server_config["export_path"]
         if export_path:
