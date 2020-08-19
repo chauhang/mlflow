@@ -9,6 +9,7 @@ PyTorch (native) format
 """
 import logging
 import os
+import pickle
 import yaml
 
 import numpy as np
@@ -53,7 +54,7 @@ def get_default_conda_env():
 
 
 def log_model(pytorch_model, artifact_path, conda_env=None, code_paths=None,
-              pickle_module=None, registered_model_name=None,
+              pickle_module=pickle, registered_model_name=None,
               signature: ModelSignature = None, input_example: ModelInputExample = None, **kwargs):
     """
     Log a PyTorch model as an MLflow artifact for the current run.
@@ -170,7 +171,7 @@ def log_model(pytorch_model, artifact_path, conda_env=None, code_paths=None,
 
 
 def save_model(pytorch_model, path, conda_env=None, mlflow_model=None, code_paths=None,
-               pickle_module=None,
+               pickle_module=pickle,
                signature: ModelSignature=None, input_example: ModelInputExample=None,
                **kwargs):
     """
@@ -284,7 +285,7 @@ def save_model(pytorch_model, path, conda_env=None, mlflow_model=None, code_path
     # Save pytorch model
     model_path = os.path.join(model_data_path, _SERIALIZED_TORCH_MODEL_FILE_NAME)
     # Removed cloudpickle - picklemodule as pytorch - version 1.6 uses python's pickle for serialization
-    torch.save(pytorch_model, model_path, pickle_module=pickle_module, **kwargs)
+    torch.save(pytorch_model, model_path, pickle_module=pickle_module, _use_new_zipfile_serialization=True, **kwargs)
 
     conda_env_subpath = "conda.yaml"
     if conda_env is None:
