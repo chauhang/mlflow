@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from pathlib import Path
+from pathlib import Path, PurePath
 
 import requests
 
@@ -172,6 +172,8 @@ class TorchServePlugin(BaseDeploymentClient):
         Generates mar file using the torch archiver in the specified model store path
         """
         valid_file_suffixes = [".pt", ".pth"]
+        requirements_file = "requirements.txt"
+        req_file_path = None
 
         if not os.path.isfile(model_uri):
             path = Path(_download_artifact_from_uri(model_uri))
@@ -190,9 +192,13 @@ class TorchServePlugin(BaseDeploymentClient):
                             for sub_files in file.iterdir():
                                 if sub_files.suffix in valid_file_suffixes:
                                     model_path = sub_files
+                                if PurePath(sub_files).name == requirements_file:
+                                    req_file_path = sub_files
                         else:
                             if file.suffix in valid_file_suffixes:
                                 model_path = file
+                            if PurePath(file).name == requirements_file:
+                                req_file_path = file
                     if model_path is None:
                         raise RuntimeError(
                             "Model file does not have a valid suffix. Expected to be one of "
@@ -217,6 +223,8 @@ class TorchServePlugin(BaseDeploymentClient):
         )
         if extra_files:
             cmd = "{} --extra-files {}".format(cmd, extra_files)
+        if req_file_path:
+            cmd = "{} -r {}".format(cmd, req_file_path)
 
         return_code = os.system(cmd)
         if return_code != 0:
