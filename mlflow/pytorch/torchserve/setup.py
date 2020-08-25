@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 
 setup(
-    name="torchservedeployment",
+    name="mlflow-torchserve",
     version="0.0.1",
     description="Torch Serve Mlflow Deployment",
     packages=find_packages(),
