@@ -4,8 +4,8 @@ import os
 from pathlib import Path, PurePath
 
 import requests
-
 from deploy.config import Config
+
 from mlflow.deployments import BaseDeploymentClient
 from mlflow.tracking.artifact_utils import _download_artifact_from_uri
 
@@ -20,9 +20,9 @@ class TorchServePlugin(BaseDeploymentClient):
         """
         super(TorchServePlugin, self).__init__(target_uri=uri)
         self.server_config = Config()
-        self.inference_api, self.management_api = self.get_torch_serve_port()
+        self.inference_api, self.management_api = self.__get_torch_serve_port()
 
-    def get_torch_serve_port(self):
+    def __get_torch_serve_port(self):
         """
         Reads through the config properties for torchserve inference and management api's
         """
@@ -41,7 +41,7 @@ class TorchServePlugin(BaseDeploymentClient):
                         management_port = name[1]
         return inference_port, management_port
 
-    def validate_mandatory_arguments(self):
+    def __validate_mandatory_arguments(self):
         """
         Validate the mandatory arguments is present if not raise exception
         """
@@ -59,8 +59,9 @@ class TorchServePlugin(BaseDeploymentClient):
         """
         Deploy the model at the model_uri to the specified target
         """
-        self.validate_mandatory_arguments()
-        mar_file_path = self.generate_mar_file(
+
+        self.__validate_mandatory_arguments()
+        mar_file_path = self.__generate_mar_file(
             model_name=name,
             version=self.server_config["version"],
             model_file=self.server_config["model_file"],
@@ -68,13 +69,14 @@ class TorchServePlugin(BaseDeploymentClient):
             extra_files=self.server_config["extra_files"],
             model_uri=model_uri,
         )
-        self.register_model(
+        self.__register_model(
             mar_file_path=mar_file_path,
             name=name,
             model_uri=model_uri,
             flavor=flavor,
             config=config,
         )
+
         return {"name": name, "flavor": flavor}
 
     def delete_deployment(self, name):
@@ -86,7 +88,10 @@ class TorchServePlugin(BaseDeploymentClient):
         url = "{}/{}/{}/{}".format(self.management_api, "models", name, version)
         resp = requests.delete(url)
         if resp.status_code != 200:
-            raise Exception("Unable to list deployments")
+            raise Exception(
+                "Unable to delete deployment for name %s. Server returned status code %s and response: %s"
+                % (name, resp.status_code, resp.content)
+            )
         return None
 
     def update_deployment(self, name, model_uri=None, flavor=None, config=None):
@@ -108,7 +113,10 @@ class TorchServePlugin(BaseDeploymentClient):
         resp = requests.put(url)
 
         if resp.status_code != 202:
-            raise Exception("Unable to list deployments")
+            raise Exception(
+                "Unable to update deployment with name %s. Server returned status code %s and response: %s"
+                % (name, resp.status_code, resp.content)
+            )
         return {"flavor": flavor}
 
     def list_deployments(self):
@@ -119,7 +127,10 @@ class TorchServePlugin(BaseDeploymentClient):
         url = "{}/{}".format(self.management_api, "models")
         resp = requests.get(url)
         if resp.status_code != 200:
-            raise Exception("Unable to list deployments")
+            raise Exception(
+                "Unable to list deployments. Server returned status code %s and response: %s"
+                % (resp.status_code, resp.content)
+            )
         return [resp.text]
 
     def get_deployment(self, name):
@@ -131,7 +142,10 @@ class TorchServePlugin(BaseDeploymentClient):
         url = "{}/{}/{}".format(self.management_api, "models", name)
         resp = requests.get(url)
         if resp.status_code != 200:
-            raise Exception("Unable to list deployments")
+            raise Exception(
+                "Unable to get deployments with name %s. Server returned status code %s and response: %s"
+                % (name, resp.status_code, resp.content)
+            )
         return {"deploy": resp.text}
 
     def predict(self, deployment_name, input, output=None):
@@ -164,7 +178,7 @@ class TorchServePlugin(BaseDeploymentClient):
                     json.dump({"result": resp.text}, fp)
         return resp.text
 
-    def generate_mar_file(
+    def __generate_mar_file(
         self, model_name, version, model_file, handler_file, extra_files, model_uri
     ):
 
@@ -242,7 +256,7 @@ class TorchServePlugin(BaseDeploymentClient):
                 print("{} file generated successfully".format(mar_file))
         return mar_file
 
-    def register_model(
+    def __register_model(
         self, mar_file_path, name, model_uri=None, flavor=None, config=None
     ):
         """
@@ -264,14 +278,14 @@ class TorchServePlugin(BaseDeploymentClient):
 
 
 def run_local(name, model_uri, flavor=None, config=None):
-    pass
+    raise Exception("Yet to be implemented!")
 
 
 def target_help():
     help_string = (
         "\nmlflow-torchserve plugin integrates torchserve to mlflow deployment pipeline. "
         "For detailed explanation and to see multiple examples, checkout the Readme at "
-        "README mlflow\pytorch\torchserve\README.md \n\n"
+        "README https://github.com/chauhang/mlflow/blob/master/README.rst \n\n"
         "Following are the various options available using the existing mlflow deployments functions\n\n"
         "CREATE: \n"
         "Deploy the model at 'model_uri' to the specified target.\n"
