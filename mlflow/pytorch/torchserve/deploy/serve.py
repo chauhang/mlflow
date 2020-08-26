@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import pandas as pd
 from pathlib import Path, PurePath
 
 import requests
@@ -148,35 +149,31 @@ class TorchServePlugin(BaseDeploymentClient):
             )
         return {"deploy": resp.text}
 
-    def predict(self, deployment_name, input, output=None):
+    def predict(self, deployment_name, df):
         """
-        Predict using the inference api with the input file that is been specified using -I or --input
-        and outputs the result to either stdout or specified file
+        Predict using the inference api
+        Takes dataframe or json string as input and returns output as string
         """
-
         version = self.server_config["version"]
-        inp_path = str(input[0])
-        if os.path.exists(inp_path):
-            with open(inp_path, "r") as f:
-                given_input = json.loads(f.read())
-        else:
-            raise Exception("Input file not found")
         url = "{}/{}/{}/{}".format(
             self.inference_api, "predictions", deployment_name, version
         )
-        resp = requests.post(url, given_input)
-        if resp.status_code != 200:
-            raise Exception("Unable to infer the results")
+        if isinstance(df, pd.DataFrame):
+            df = df.to_json(orient="records")[1:-1].replace("},{", "} {")
+        try:
+            data = json.loads(df)
+        except TypeError as e:
+            raise Exception("Input data can either be dataframe or Json string: {}".format(e))
 
-        if output is not None and len(output) != 0:
-            output_path = str(output[0])
-            if os.path.exists(output_path):
-                with open(output_path + "/output.json", "w") as fp:
-                    json.dump({"result": resp.text}, fp)
-            else:
-                with open("output.json", "w") as fp:
-                    json.dump({"result": resp.text}, fp)
+        resp = requests.post(url, data)
+        if resp.status_code != 200:
+            raise Exception(
+                "Unable to infer the results for the name %s. Server returned status code %s and response: %s"
+                % (deployment_name, resp.status_code, resp.content)
+            )
+
         return resp.text
+
 
     def __generate_mar_file(
         self, model_name, version, model_file, handler_file, extra_files, model_uri

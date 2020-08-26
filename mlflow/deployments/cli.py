@@ -1,4 +1,6 @@
 import click
+import json
+import pandas as pd
 from mlflow.utils import cli_args
 from mlflow.deployments import interface
 
@@ -48,10 +50,10 @@ parse_custom_arguments = click.option("--config", "-C", metavar="NAME=VALUE", mu
                                            "documentation/help for your deployment target for a "
                                            "list of supported config options.")
 
-parse_input = click.option("--input", "-I",  required=True, multiple=True,
+parse_input = click.option("--input_path", "-I",  required=True,
                                       help="Path to the input file either can be json / csv / text")
 
-parse_output = click.option("--output", "-O", multiple=True,
+parse_output = click.option("--output_path", "-O", required=True,
                                       help="Path to the output file. This is optional, if not given it will be printed in stdout")
 
 
@@ -200,12 +202,15 @@ def run_local(flavor, model_uri, target, name, config):
 @target_details
 @parse_input
 @parse_output
-def predict(target, name, input, output):
+def predict(target, name, input_path, output_path):
     """
     Predict the results for the deployed model for the given input(s)
     """
+    df = pd.read_json(input_path)
     client = interface.get_deploy_client(target)
-    result = client.predict(name, input, output)
+    result = client.predict(name, df)
     click.echo("\n")
     click.echo("RESULT IS: {}".format(result))
     click.echo("\n")
+    with open(output_path, "w") as fp:
+        fp.write(str(json.loads(result)))
