@@ -1,4 +1,6 @@
 import json
+import subprocess
+import time
 import logging
 import os
 import pandas as pd
@@ -7,7 +9,7 @@ from pathlib import Path, PurePath
 import requests
 from deploy.config import Config
 
-from mlflow.deployments import BaseDeploymentClient
+from mlflow.deployments import BaseDeploymentClient, get_deploy_client
 from mlflow.tracking.artifact_utils import _download_artifact_from_uri
 
 _logger = logging.getLogger(__name__)
@@ -22,6 +24,7 @@ class TorchServePlugin(BaseDeploymentClient):
         super(TorchServePlugin, self).__init__(target_uri=uri)
         self.server_config = Config()
         self.inference_api, self.management_api = self.__get_torch_serve_port()
+        self.default_limit = 100
 
     def __get_torch_serve_port(self):
         """
@@ -125,14 +128,36 @@ class TorchServePlugin(BaseDeploymentClient):
         List the names of all model deployments in the specified target. These names can be used with
         delete , update and get commands
         """
-        url = "{}/{}".format(self.management_api, "models")
-        resp = requests.get(url)
-        if resp.status_code != 200:
-            raise Exception(
-                "Unable to list deployments. Server returned status code %s and response: %s"
-                % (resp.status_code, resp.content)
+
+        deployment_list = []
+        limit = self.default_limit
+        nextPageToken = 0
+
+        while True:
+            url = "{}/{}?{}={}&{}={}".format(
+                self.management_api,
+                "models",
+                "limit",
+                limit,
+                "next_page_token",
+                nextPageToken,
             )
-        return [resp.text]
+            resp = requests.get(url)
+            if resp.status_code != 200:
+                raise Exception("Unable to list deployments")
+            temp = json.loads(resp.text)
+            model_count = len(temp["models"])
+            for i in range(model_count):
+                tempDict = {}
+                key = temp["models"][i]["modelName"]
+                tempDict[key] = temp["models"][i]
+                deployment_list.append(tempDict)
+            if "nextPageToken" not in temp:
+                break
+            else:
+                nextPageToken = temp["nextPageToken"]
+
+        return deployment_list
 
     def get_deployment(self, name):
         """
@@ -163,7 +188,9 @@ class TorchServePlugin(BaseDeploymentClient):
         try:
             data = json.loads(df)
         except TypeError as e:
-            raise Exception("Input data can either be dataframe or Json string: {}".format(e))
+            raise Exception(
+                "Input data can either be dataframe or Json string: {}".format(e)
+            )
 
         resp = requests.post(url, data)
         if resp.status_code != 200:
@@ -173,7 +200,6 @@ class TorchServePlugin(BaseDeploymentClient):
             )
 
         return resp.text
-
 
     def __generate_mar_file(
         self, model_name, version, model_file, handler_file, extra_files, model_uri
@@ -275,7 +301,66 @@ class TorchServePlugin(BaseDeploymentClient):
 
 
 def run_local(name, model_uri, flavor=None, config=None):
-    raise Exception("Yet to be implemented!")
+    device = config.get("device", "cpu")
+    if "gpu" in device.lower():
+        commands = [
+            "docker",
+            "run",
+            "--rm",
+            "-it",
+            "--gpus",
+            "all",
+            "-p",
+            "8080:8080",
+            "-p",
+            "8081:8081",
+            "torchserve:gpu-latest",
+        ]
+    else:
+        commands = [
+            "docker",
+            "run",
+            "--rm",
+            "-it",
+            "-p",
+            "8080:8080",
+            "-p",
+            "8081:8081",
+            "pytorch/torchserve:latest",
+        ]
+    proc = subprocess.Popen(commands)
+    start_time = time.time()
+    prev_num_interval = 0
+
+    while True:
+        try:
+            url = "http://localhost:8080/ping"
+            resp = requests.get(url)
+            if resp.status_code != 200:
+                raise Exception("Unable to ping torchserve in localhost")
+            else:
+                break
+        except requests.exceptions.ConnectionError:
+            num_interval, _ = divmod(time.time() - start_time, 10)
+            if num_interval > prev_num_interval:
+                prev_num_interval = num_interval
+                try:
+                    proc.communicate(timeout=0.1)
+                except subprocess.TimeoutExpired:
+                    pass
+                else:
+                    raise RuntimeError(
+                        "Could not start the torchserve docker container. You can "
+                        "try setting up torchserve locally"
+                        " and call the ``create`` API with target_uri as given in "
+                        "the example command below (this will set the host as "
+                        "localhost and port as 8080)\n\n"
+                        "    mlflow deployments create -t torchserve -m <modeluri> ...\n\n"
+                    )
+            time.sleep(0.2)
+
+    plugin = get_deploy_client("torchserve")
+    plugin.create_deployment(name, model_uri, flavor, config)
 
 
 def target_help():
