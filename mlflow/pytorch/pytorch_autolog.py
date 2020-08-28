@@ -5,7 +5,6 @@ function, and optimizer data as parameters. Model checkpoints
 are logged as artifacts to a 'models' directory.
 MLflow will also log the parameters of the EarlyStopping callback
 """
-import mlflow
 import logging
 import mlflow.pytorch
 import os
@@ -86,10 +85,17 @@ class __MLflowPLCallback(pl.Callback):
         Logs the model checkpoint into mlflow - models folder on the training end
         """
 
-        mlflow.set_tracking_uri(trainer.logger._tracking_uri )
-        mlflow.set_experiment(trainer.logger._experiment_name)
-        mlflow.start_run(trainer.logger.run_id)
-        mlflow.pytorch.log_model(trainer.model, "models")
+        tempdir = tempfile.mkdtemp()
+        if os.path.exists(tempdir):
+            shutil.rmtree(tempdir)
+
+        try:
+            mlflow.pytorch.save_model(trainer.model, path=tempdir)
+            trainer.logger.experiment.log_artifact(
+                trainer.logger.run_id, local_path=tempdir, artifact_path="model"
+            )
+        finally:
+            shutil.rmtree(tempdir)
 
         if trainer.early_stop_callback and trainer.checkpoint_callback.best_model_path:
             trainer.logger.experiment.log_artifact(
@@ -97,7 +103,6 @@ class __MLflowPLCallback(pl.Callback):
                 local_path=trainer.checkpoint_callback.best_model_path,
                 artifact_path="restored_model_checkpoint",
             )
-
 
     def on_test_end(self, trainer, pl_module):
         """
