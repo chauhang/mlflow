@@ -182,7 +182,7 @@ class TorchServePlugin(BaseDeploymentClient):
             df = df.to_json(orient="records")[1:-1].replace("},{", "} {")
         try:
             data = json.loads(df)
-        except TypeError as e:
+        except (TypeError, json.decoder.JSONDecodeError) as e:
             raise Exception(
                 "Input data can either be dataframe or Json string: {}".format(e)
             )
