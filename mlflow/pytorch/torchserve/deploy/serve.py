@@ -134,15 +134,11 @@ class TorchServePlugin(BaseDeploymentClient):
         nextPageToken = 0
 
         while True:
-            url = "{}/{}?{}={}&{}={}".format(
-                self.management_api,
-                "models",
-                "limit",
-                limit,
-                "next_page_token",
-                nextPageToken,
-            )
-            resp = requests.get(url)
+            url = "{}/{}".format(self.management_api, "models")
+
+            input_params = {"limit": limit, "next_page_token": nextPageToken}
+
+            resp = requests.get(url, params=input_params)
             if resp.status_code != 200:
                 raise Exception("Unable to list deployments")
             temp = json.loads(resp.text)
@@ -156,7 +152,6 @@ class TorchServePlugin(BaseDeploymentClient):
                 break
             else:
                 nextPageToken = temp["nextPageToken"]
-
         return deployment_list
 
     def get_deployment(self, name):
