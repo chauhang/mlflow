@@ -1,28 +1,31 @@
 import os
 import pytest
 import pytorch_lightning as pl
+import tempfile
 from iris import IrisClassification
 from mlflow.pytorch.pytorch_autolog import __MLflowPLCallback
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.logging import MLFlowLogger
+from pytorch_lightning.loggers import MLFlowLogger
 
-NUM_EPOCHS = 20
+NUM_EPOCHS = 100
 
 
 @pytest.fixture
 def pytorch_model():
-    mlflow_logger = MLFlowLogger(tracking_uri="http://localhost:5000")
+    tracking_uri = os.path.join(tempfile.mkdtemp(), "mlruns")
+    experiment_name = "Default"
+    mlflow_logger = MLFlowLogger(tracking_uri=tracking_uri, experiment_name=experiment_name)
     model = IrisClassification()
     trainer = pl.Trainer(
         max_epochs=NUM_EPOCHS, callbacks=[__MLflowPLCallback()], logger=mlflow_logger
     )
     trainer.fit(model)
     client = trainer.logger.experiment
-    return trainer, client.get_run(client.list_run_infos(experiment_id="0")[0].run_id)
+    experiment_id = client.get_experiment_by_name(experiment_name).experiment_id
+    return trainer, client.get_run(client.list_run_infos(experiment_id=experiment_id)[0].run_id)
 
 
-@pytest.mark.large
 def test_pytorch_autolog_logs_default_params(pytorch_model):
     trainer, run = pytorch_model
     data = run.data
@@ -31,7 +34,6 @@ def test_pytorch_autolog_logs_default_params(pytorch_model):
     assert "optimizer_name" in data.params
 
 
-@pytest.mark.large
 def test_pytorch_autolog_logs_expected_data(pytorch_model):
     trainer, run = pytorch_model
     data = run.data
@@ -58,7 +60,9 @@ def test_pytorch_autolog_logs_expected_data(pytorch_model):
 
 @pytest.fixture
 def pytorch_model_with_callback(patience):
-    mlflow_logger = MLFlowLogger(tracking_uri="http://localhost:5000")
+    tracking_uri = os.path.join(tempfile.mkdtemp(), "mlruns")
+    experiment_name = "Default"
+    mlflow_logger = MLFlowLogger(tracking_uri=tracking_uri, experiment_name=experiment_name)
     model = IrisClassification()
     early_stopping = EarlyStopping(
         monitor="val_loss", mode="min", patience=patience, verbose=True
@@ -83,10 +87,11 @@ def pytorch_model_with_callback(patience):
     trainer.fit(model)
     trainer.test()
     client = trainer.logger.experiment
-    return trainer, client.get_run(client.list_run_infos(experiment_id="0")[0].run_id)
+    experiment_id = client.get_experiment_by_name(experiment_name).experiment_id
+    return trainer, client.get_run(client.list_run_infos(experiment_id=experiment_id)[0].run_id)
 
 
-@pytest.mark.large
+
 @pytest.mark.parametrize("patience", [3])
 def test_pytorch_early_stop_metrics_logged(pytorch_model_with_callback, patience):
     trainer, run = pytorch_model_with_callback
@@ -96,7 +101,7 @@ def test_pytorch_early_stop_metrics_logged(pytorch_model_with_callback, patience
     assert "restored_model_checkpoint" in artifacts
 
 
-@pytest.mark.large
+
 @pytest.mark.parametrize("patience", [0, 1, 5])
 def test_pytorch_early_stop_params_logged(pytorch_model_with_callback, patience):
     trainer, run = pytorch_model_with_callback
@@ -109,7 +114,7 @@ def test_pytorch_early_stop_params_logged(pytorch_model_with_callback, patience)
     assert "stopped_epoch" in data.params
 
 
-@pytest.mark.large
+
 @pytest.mark.parametrize("patience", [3])
 def test_pytorch_early_stop_metrics_logged(pytorch_model_with_callback, patience):
     trainer, run = pytorch_model_with_callback
@@ -122,7 +127,9 @@ def test_pytorch_early_stop_metrics_logged(pytorch_model_with_callback, patience
 
 @pytest.fixture
 def pytorch_model_tests():
-    mlflow_logger = MLFlowLogger(tracking_uri="http://localhost:5000")
+    tracking_uri = os.path.join(tempfile.mkdtemp(), "mlruns")
+    experiment_name = "Default"
+    mlflow_logger = MLFlowLogger(tracking_uri=tracking_uri, experiment_name=experiment_name)
     model = IrisClassification()
 
     trainer = pl.Trainer(
@@ -131,10 +138,11 @@ def pytorch_model_tests():
     trainer.fit(model)
     trainer.test()
     client = trainer.logger.experiment
-    return trainer, client.get_run(client.list_run_infos(experiment_id="0")[0].run_id)
+    experiment_id = client.get_experiment_by_name(experiment_name).experiment_id
+    return trainer, client.get_run(client.list_run_infos(experiment_id=experiment_id)[0].run_id)
 
 
-@pytest.mark.large
+
 def test_pytorch_test_metrics_logged(pytorch_model_tests):
     trainer, run = pytorch_model_tests
     data = run.data
