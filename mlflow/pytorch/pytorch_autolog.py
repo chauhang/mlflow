@@ -91,6 +91,11 @@ class __MLflowPLCallback(pl.Callback):
         Logs the model checkpoint into mlflow - models folder on the training end
         """
 
+        # autolog method uses Pytorch Lightning's MLFLow logger for tracking metrics.
+        # Start and End run are controlled by MLFlowLogger class.
+        # Unless tracking URI and experiment are set explicitly, mlflow.pytorch will not be able to log the model.
+        # To fix this issue, logger variables such as tracking uri, experiment name and run id are used.
+        # Note: run_id parameter in start_run helps to log the model into the same run created by MLFLow logger.
         mlflow.set_tracking_uri(trainer.logger._tracking_uri )
         mlflow.set_experiment(trainer.logger._experiment_name)
         mlflow.start_run(trainer.logger.run_id)
