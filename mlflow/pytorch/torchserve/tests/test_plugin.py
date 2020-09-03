@@ -25,7 +25,7 @@ def start_torchserve():
     if not os.path.isdir("model_store"):
         os.makedirs("model_store")
     cmd = "torchserve --start --model-store {}".format("./model_store")
-    return_code = os.system(cmd)
+    return_code = subprocess.Popen(cmd, shell=True).wait()
 
     count = 0
     for _ in range(5):
@@ -55,7 +55,7 @@ def health_checkup():
 
 def stop_torchserve():
     cmd = "torchserve --stop"
-    return_code = os.system(cmd)
+    return_code = subprocess.Popen(cmd, shell=True).wait()
 
     if os.path.isdir("model_store"):
         shutil.rmtree("model_store")

@@ -258,7 +258,7 @@ class TorchServePlugin(BaseDeploymentClient):
         if req_file_path:
             cmd = "{} -r {}".format(cmd, req_file_path)
 
-        return_code = os.system(cmd)
+        return_code = subprocess.Popen(cmd, shell=True).wait()
         if return_code != 0:
             _logger.error(
                 "Error when attempting to load and parse JSON cluster spec from file %s",
