@@ -17,9 +17,15 @@ f_flavor = None
 f_model_uri = os.path.join("mlflow/pytorch/torchserve/tests/resources", "linear.pt")
 
 env_version = "1.0"
-env_model_file = os.path.join("mlflow/pytorch/torchserve/tests/resources", "linear_model.py")
-env_handler_file = os.path.join("mlflow/pytorch/torchserve/tests/resources", "linear_handler.py")
-sample_input_file = os.path.join("mlflow/pytorch/torchserve/tests/resources", "sample.json")
+env_model_file = os.path.join(
+    "mlflow/pytorch/torchserve/tests/resources", "linear_model.py"
+)
+env_handler_file = os.path.join(
+    "mlflow/pytorch/torchserve/tests/resources", "linear_handler.py"
+)
+sample_input_file = os.path.join(
+    "mlflow/pytorch/torchserve/tests/resources", "sample.json"
+)
 
 
 @pytest.fixture(scope="session")
@@ -65,7 +71,15 @@ def stop_torchserve():
 
 atexit.register(stop_torchserve)
 
-@mock.patch.dict(os.environ, {"VERSION": env_version, "MODEL_FILE": env_model_file, "HANDLER_FILE": env_handler_file})
+
+@mock.patch.dict(
+    os.environ,
+    {
+        "VERSION": env_version,
+        "MODEL_FILE": env_model_file,
+        "HANDLER_FILE": env_handler_file,
+    },
+)
 def test_create_cli_success(start_torchserve):
     client = deployments.get_deploy_client(f_target)
     runner = CliRunner()
@@ -124,6 +138,7 @@ def test_get_cli_success():
         cli.get_deployment, ["--name", f_deployment_id, "--target", f_target]
     )
     assert "{}".format(f_deployment_id) in res.stdout
+
 
 @mock.patch.dict(os.environ, {"VERSION": env_version})
 def test_delete_cli_success():
