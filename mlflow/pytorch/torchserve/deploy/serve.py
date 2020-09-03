@@ -297,7 +297,7 @@ class TorchServePlugin(BaseDeploymentClient):
 
 def run_local(name, model_uri, flavor=None, config=None):
     device = config.get("device", "cpu")
-    if "gpu" in device.lower():
+    if device.lower() == "gpu":
         commands = [
             "docker",
             "run",
