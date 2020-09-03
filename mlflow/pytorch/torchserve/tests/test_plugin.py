@@ -7,17 +7,18 @@ import subprocess
 import time
 from mlflow import deployments
 from mlflow.exceptions import MlflowException
+import mock
 
 f_target = "torchserve"
 f_deployment_id = "test"
 f_flavor = None
-f_model_uri = "mlflow/pytorch/torchserve/tests/resources/linear.pt"
+f_model_uri = os.path.join("mlflow/pytorch/torchserve/tests/resources", "linear.pt")
 
 env_version = "1.0"
-env_model_file = "mlflow/pytorch/torchserve/tests/resources/linear_model.py"
-env_handler_file = "mlflow/pytorch/torchserve/tests/resources/linear_handler.py"
-sample_input_file = "mlflow/pytorch/torchserve/tests/resources/sample.json"
-sample_output_file = "mlflow/pytorch/torchserve/tests/resources/output.json"
+env_model_file = os.path.join("mlflow/pytorch/torchserve/tests/resources", "linear_model.py")
+env_handler_file = os.path.join("mlflow/pytorch/torchserve/tests/resources", "linear_handler.py")
+sample_input_file = os.path.join("mlflow/pytorch/torchserve/tests/resources", "sample.json")
+sample_output_file = os.path.join("mlflow/pytorch/torchserve/tests/resources", "output.json")
 
 
 @pytest.fixture(scope="session")
@@ -61,20 +62,10 @@ def stop_torchserve():
         shutil.rmtree("model_store")
 
 
-@pytest.fixture
-def clear_env_variables():
-    if "VERSION" in os.environ:
-        os.environ.pop("VERSION")
-    if "MODEL_FILE" in os.environ:
-        os.environ.pop("MODEL_FILE")
-    if "HANDLER_FILE" in os.environ:
-        os.environ.pop("HANDLER_FILE")
-
-
 atexit.register(stop_torchserve)
 
 
-def test_mandatory_params_missing(start_torchserve, clear_env_variables):
+def test_mandatory_params_missing(start_torchserve):
     with pytest.raises(Exception, match=r"Environment Variable VERSION - missing"):
         client = deployments.get_deploy_client(f_target)
         client.create_deployment(f_deployment_id, f_model_uri, f_flavor, config={})
@@ -94,6 +85,8 @@ def test_mandatory_params_missing(start_torchserve, clear_env_variables):
     os.environ["HANDLER_FILE"] = env_handler_file
 
 
+
+@mock.patch.dict(os.environ, {"VERSION": env_version, "MODEL_FILE": env_model_file, "HANDLER_FILE": env_handler_file})
 def test_create_deployment_success():
     client = deployments.get_deploy_client(f_target)
     ret = client.create_deployment(f_deployment_id, f_model_uri, f_flavor, config={})
@@ -150,6 +143,7 @@ def test_delete_success():
 f_dummy = "dummy"
 
 
+@mock.patch.dict(os.environ, {"VERSION": env_version, "MODEL_FILE": env_model_file, "HANDLER_FILE": env_handler_file})
 def test_create_wrong_handler_exception():
     os.environ["HANDLER_FILE"] = f_dummy
     with pytest.raises(Exception, match="Unable to create mar file"):
@@ -157,7 +151,7 @@ def test_create_wrong_handler_exception():
         client.create_deployment(f_deployment_id, f_model_uri)
     os.environ["HANDLER_FILE"] = env_handler_file
 
-
+@mock.patch.dict(os.environ, {"VERSION": env_version, "MODEL_FILE": env_model_file, "HANDLER_FILE": env_handler_file})
 def test_create_wrong_model_exception():
     os.environ["MODEL_FILE"] = f_dummy
     with pytest.raises(Exception, match="Unable to create mar file"):
@@ -165,7 +159,7 @@ def test_create_wrong_model_exception():
         client.create_deployment(f_deployment_id, f_model_uri)
     os.environ["MODEL_FILE"] = env_model_file
 
-
+@mock.patch.dict(os.environ, {"VERSION": env_version, "MODEL_FILE": env_model_file, "HANDLER_FILE": env_handler_file})
 def test_create_mar_file_exception():
     with pytest.raises(Exception, match="No such file or directory"):
         client = deployments.get_deploy_client(f_target)
