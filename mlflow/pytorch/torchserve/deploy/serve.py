@@ -219,18 +219,12 @@ class TorchServePlugin(BaseDeploymentClient):
                 if path.suffix in valid_file_suffixes:
                     model_uri = path
                 else:
-                    for file in path.iterdir():
-                        if file.is_dir():
-                            for sub_files in file.iterdir():
-                                if sub_files.suffix in valid_file_suffixes:
-                                    model_path = sub_files
-                                if PurePath(sub_files).name == requirements_file:
-                                    req_file_path = sub_files
-                        else:
-                            if file.suffix in valid_file_suffixes:
-                                model_path = file
-                            if PurePath(file).name == requirements_file:
-                                req_file_path = file
+                    for root, dirs, files in os.walk(path, topdown=False):
+                        for name in files:
+                            if Path(name).suffix in valid_file_suffixes:
+                                model_path = os.path.join(root, name)
+                            if PurePath(name).name == requirements_file:
+                                req_file_path = os.path.join(root, name)
                     if model_path is None:
                         raise RuntimeError(
                             "Model file does not have a valid suffix. Expected to be one of "
