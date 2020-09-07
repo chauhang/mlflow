@@ -1,3 +1,4 @@
+import docker
 import json
 import subprocess
 import time
@@ -13,6 +14,9 @@ from mlflow.deployments import BaseDeploymentClient, get_deploy_client
 from mlflow.tracking.artifact_utils import _download_artifact_from_uri
 
 _logger = logging.getLogger(__name__)
+
+_DEFAULT_TORCHSERVE_LOCAL_INFERENCE_PORT = "8080"
+_DEFAULT_TORCHSERVE_LOCAL_MANAGEMENT_PORT = "8081"
 
 
 class TorchServePlugin(BaseDeploymentClient):
@@ -292,62 +296,43 @@ class TorchServePlugin(BaseDeploymentClient):
 def run_local(name, model_uri, flavor=None, config=None):
     device = config.get("device", "cpu")
     if device.lower() == "gpu":
-        commands = [
-            "docker",
-            "run",
-            "--rm",
-            "-it",
-            "--gpus",
-            "all",
-            "-p",
-            "8080:8080",
-            "-p",
-            "8081:8081",
-            "torchserve:gpu-latest",
-        ]
+        docker_image = "pytorch/torchserve:latest-gpu"
     else:
-        commands = [
-            "docker",
-            "run",
-            "--rm",
-            "-it",
-            "-p",
-            "8080:8080",
-            "-p",
-            "8081:8081",
-            "pytorch/torchserve:latest",
-        ]
-    proc = subprocess.Popen(commands)
-    start_time = time.time()
-    prev_num_interval = 0
+        docker_image = "pytorch/torchserve:latest"
 
-    while True:
+    client = docker.from_env()
+    client.containers.run(
+        image=docker_image,
+        auto_remove=True,
+        ports={
+            _DEFAULT_TORCHSERVE_LOCAL_INFERENCE_PORT: _DEFAULT_TORCHSERVE_LOCAL_INFERENCE_PORT,
+            _DEFAULT_TORCHSERVE_LOCAL_MANAGEMENT_PORT: _DEFAULT_TORCHSERVE_LOCAL_MANAGEMENT_PORT,
+        },
+        detach=True,
+    )
+
+    for _ in range(10):
+        url = "http://localhost:{port}/ping".format(
+            port=_DEFAULT_TORCHSERVE_LOCAL_INFERENCE_PORT
+        )
         try:
-            url = "http://localhost:8080/ping"
             resp = requests.get(url)
             if resp.status_code != 200:
-                raise Exception("Unable to ping torchserve in localhost")
+                time.sleep(6)
+                continue
             else:
                 break
         except requests.exceptions.ConnectionError:
-            num_interval, _ = divmod(time.time() - start_time, 10)
-            if num_interval > prev_num_interval:
-                prev_num_interval = num_interval
-                try:
-                    proc.communicate(timeout=0.1)
-                except subprocess.TimeoutExpired:
-                    pass
-                else:
-                    raise RuntimeError(
-                        "Could not start the torchserve docker container. You can "
-                        "try setting up torchserve locally"
-                        " and call the ``create`` API with target_uri as given in "
-                        "the example command below (this will set the host as "
-                        "localhost and port as 8080)\n\n"
-                        "    mlflow deployments create -t torchserve -m <modeluri> ...\n\n"
-                    )
-            time.sleep(0.2)
-
+            time.sleep(6)
+    else:
+        raise RuntimeError(
+            "Could not start the torchserve docker container. You can "
+            "try setting up torchserve locally"
+            " and call the ``create`` API with target_uri as given in "
+            "the example command below (this will set the host as "
+            "localhost and port as 8080)\n\n"
+            "    mlflow deployments create -t torchserve -m <modeluri> ...\n\n"
+        )
     plugin = get_deploy_client("torchserve")
     plugin.create_deployment(name, model_uri, flavor, config)
 
