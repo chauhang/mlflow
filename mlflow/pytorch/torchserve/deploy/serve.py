@@ -5,6 +5,7 @@ import time
 import logging
 import os
 import pandas as pd
+import torch
 from pathlib import Path, PurePath
 
 import requests
@@ -176,7 +177,7 @@ class TorchServePlugin(BaseDeploymentClient):
     def predict(self, deployment_name, df):
         """
         Predict using the inference api
-        Takes dataframe or json string as input and returns output as string
+        Takes dataframe, Tensor or json string as input and returns output as string
         """
         version = self.server_config["version"]
         url = "{}/{}/{}/{}".format(
@@ -184,12 +185,16 @@ class TorchServePlugin(BaseDeploymentClient):
         )
         if isinstance(df, pd.DataFrame):
             df = df.to_json(orient="records")[1:-1].replace("},{", "} {")
-        try:
-            data = json.loads(df)
-        except (TypeError, json.decoder.JSONDecodeError) as e:
-            raise Exception(
-                "Input data can either be dataframe or Json string: {}".format(e)
-            )
+
+        if torch.is_tensor(df):
+            data = json.dumps({"data": df.tolist()})
+        else:
+            try:
+                data = json.loads(df)
+            except (TypeError, json.decoder.JSONDecodeError) as e:
+                raise Exception(
+                    "Input data can either be dataframe or Json string: {}".format(e)
+                )
 
         resp = requests.post(url, data)
         if resp.status_code != 200:
