@@ -57,7 +57,7 @@ class SentimentClassifier(nn.Module):
         super(SentimentClassifier, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.PRE_TRAINED_MODEL_NAME = "bert-base-cased"
-        self.EPOCHS = 1
+        self.EPOCHS = 5
         n_classes = len(class_names)
 
         self.bert = BertModel.from_pretrained(self.PRE_TRAINED_MODEL_NAME)
