@@ -1,24 +1,25 @@
 import atexit
 import json
 import os
-import pytest
 import shutil
 import subprocess
 import time
+
+import pytest
+
 from mlflow import deployments
 from mlflow.exceptions import MlflowException
-import mock
 
 f_target = "torchserve"
 f_deployment_id = "test"
 f_flavor = None
 f_model_uri = os.path.join("mlflow/pytorch/torchserve/tests/resources", "linear.pt")
 
-env_version = "1.0"
-env_model_file = os.path.join(
+model_version = "1.0"
+model_file_path = os.path.join(
     "mlflow/pytorch/torchserve/tests/resources", "linear_model.py"
 )
-env_handler_file = os.path.join(
+handler_file_path = os.path.join(
     "mlflow/pytorch/torchserve/tests/resources", "linear_handler.py"
 )
 sample_input_file = os.path.join(
@@ -73,37 +74,34 @@ def stop_torchserve():
 atexit.register(stop_torchserve)
 
 
-def test_mandatory_params_missing(start_torchserve):
-    with pytest.raises(Exception, match=r"Environment Variable VERSION - missing"):
-        client = deployments.get_deploy_client(f_target)
-        client.create_deployment(f_deployment_id, f_model_uri, f_flavor, config={})
-
-    os.environ["VERSION"] = env_version
-
-    with pytest.raises(Exception, match=r"Environment Variable MODEL_FILE - missing"):
-        client = deployments.get_deploy_client(f_target)
-        client.create_deployment(f_deployment_id, f_model_uri, f_flavor, config={})
-
-    os.environ["MODEL_FILE"] = env_model_file
-
-    with pytest.raises(Exception, match=r"Environment Variable HANDLER_FILE - missing"):
-        client = deployments.get_deploy_client(f_target)
-        client.create_deployment(f_deployment_id, f_model_uri, f_flavor, config={})
-
-    os.environ["HANDLER_FILE"] = env_handler_file
-
-
-@mock.patch.dict(
-    os.environ,
-    {
-        "VERSION": env_version,
-        "MODEL_FILE": env_model_file,
-        "HANDLER_FILE": env_handler_file,
-    },
-)
-def test_create_deployment_success():
+def test_create_deployment_success(start_torchserve):
     client = deployments.get_deploy_client(f_target)
-    ret = client.create_deployment(f_deployment_id, f_model_uri, f_flavor, config={})
+    ret = client.create_deployment(
+        f_deployment_id,
+        f_model_uri,
+        f_flavor,
+        config={
+            "VERSION": model_version,
+            "MODEL_FILE": model_file_path,
+            "HANDLER_FILE": handler_file_path,
+        },
+    )
+    assert isinstance(ret, dict)
+    assert ret["name"] == f_deployment_id
+    assert ret["flavor"] == f_flavor
+
+
+def test_create_deployment_no_version():
+    client = deployments.get_deploy_client(f_target)
+    ret = client.create_deployment(
+        f_deployment_id,
+        f_model_uri,
+        f_flavor,
+        config={
+            "MODEL_FILE": model_file_path,
+            "HANDLER_FILE": handler_file_path,
+        },
+    )
     assert isinstance(ret, dict)
     assert ret["name"] == f_deployment_id
     assert ret["flavor"] == f_flavor
@@ -151,62 +149,84 @@ def test_predict_success():
 
 def test_delete_success():
     client = deployments.get_deploy_client(f_target)
+    assert client.delete_deployment(f_deployment_id, config={"VERSION" : "2.0"}) is None
+
+
+def test_delete_no_version():
+    client = deployments.get_deploy_client(f_target)
     assert client.delete_deployment(f_deployment_id) is None
 
 
 f_dummy = "dummy"
 
 
-@mock.patch.dict(
-    os.environ,
-    {
-        "VERSION": env_version,
-        "MODEL_FILE": env_model_file,
-        "HANDLER_FILE": env_handler_file,
-    },
-)
+def test_create_no_handler_exception():
+    with pytest.raises(Exception, match="Config Variable HANDLER_FILE - missing"):
+        client = deployments.get_deploy_client(f_target)
+        client.create_deployment(
+            f_deployment_id,
+            f_model_uri,
+            f_flavor,
+            config={"VERSION": model_version, "MODEL_FILE": model_file_path},
+        )
+
+
+def test_create_no_model_exception():
+    with pytest.raises(Exception, match="Config Variable MODEL_FILE - missing"):
+        client = deployments.get_deploy_client(f_target)
+        client.create_deployment(
+            f_deployment_id,
+            f_model_uri,
+            f_flavor,
+            config={"VERSION": model_version, "HANDLER_FILE": handler_file_path},
+        )
+
+
 def test_create_wrong_handler_exception():
-    os.environ["HANDLER_FILE"] = f_dummy
     with pytest.raises(Exception, match="Unable to create mar file"):
         client = deployments.get_deploy_client(f_target)
-        client.create_deployment(f_deployment_id, f_model_uri)
-    os.environ["HANDLER_FILE"] = env_handler_file
+        client.create_deployment(
+            f_deployment_id,
+            f_model_uri,
+            f_flavor,
+            config={
+                "VERSION": model_version,
+                "MODEL_FILE": model_file_path,
+                "HANDLER_FILE": f_dummy,
+            },
+        )
 
 
-@mock.patch.dict(
-    os.environ,
-    {
-        "VERSION": env_version,
-        "MODEL_FILE": env_model_file,
-        "HANDLER_FILE": env_handler_file,
-    },
-)
 def test_create_wrong_model_exception():
-    os.environ["MODEL_FILE"] = f_dummy
     with pytest.raises(Exception, match="Unable to create mar file"):
         client = deployments.get_deploy_client(f_target)
-        client.create_deployment(f_deployment_id, f_model_uri)
-    os.environ["MODEL_FILE"] = env_model_file
+        client.create_deployment(
+            f_deployment_id,
+            f_model_uri,
+            f_flavor,
+            config={
+                "VERSION": model_version,
+                "MODEL_FILE": f_dummy,
+                "HANDLER_FILE": handler_file_path,
+            },
+        )
 
 
-@mock.patch.dict(
-    os.environ,
-    {
-        "VERSION": env_version,
-        "MODEL_FILE": env_model_file,
-        "HANDLER_FILE": env_handler_file,
-    },
-)
 def test_create_mar_file_exception():
     with pytest.raises(Exception, match="No such file or directory"):
         client = deployments.get_deploy_client(f_target)
-        client.create_deployment(f_deployment_id, f_dummy)
-        os.environ.pop("VERSION")
-        os.environ.pop("MODEL_FILE")
-        os.environ.pop("HANDLER_FILE")
+        client.create_deployment(
+            f_deployment_id,
+            f_dummy,
+            config={
+                "VERSION": model_version,
+                "MODEL_FILE": model_file_path,
+                "HANDLER_FILE": handler_file_path,
+            },
+        )
 
 
-def test_update_file_exception():
+def test_update_invalid_name():
     with pytest.raises(
         Exception, match="Unable to update deployment with name %s" % f_dummy
     ):
@@ -214,7 +234,7 @@ def test_update_file_exception():
         client.update_deployment(f_dummy)
 
 
-def test_get_file_exception():
+def test_get_invalid_name():
     with pytest.raises(
         Exception, match="Unable to get deployments with name %s" % f_dummy
     ):
@@ -222,12 +242,12 @@ def test_get_file_exception():
         client.get_deployment(f_dummy)
 
 
-def test_delete_file_exception():
+def test_delete_invalid_name():
     with pytest.raises(
         Exception, match="Unable to delete deployment for name %s" % f_dummy
     ):
         client = deployments.get_deploy_client(f_target)
-        client.delete_deployment(f_dummy)
+        client.delete_deployment(f_dummy, config={"VERSION": model_version})
 
 
 def test_predict_exception():
@@ -245,4 +265,4 @@ def test_predict_name_exception():
         client = deployments.get_deploy_client(f_target)
         with open(sample_input_file) as fp:
             data = fp.read()
-        client.predict(f_dummy, data)
+        client.predict(f_dummy, data, config={"VERSION": model_version})
