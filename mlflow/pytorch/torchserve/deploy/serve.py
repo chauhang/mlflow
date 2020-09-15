@@ -55,45 +55,67 @@ class TorchServePlugin(BaseDeploymentClient):
         Validate the mandatory arguments is present if not raise exception
         """
 
-        if not self.server_config["version"]:
-            raise Exception("Environment Variable VERSION - missing")
-
         if not self.server_config["model_file"]:
-            raise Exception("Environment Variable MODEL_FILE - missing")
+            raise Exception("Config Variable MODEL_FILE - missing")
 
         if not self.server_config["handler_file"]:
-            raise Exception("Environment Variable HANDLER_FILE - missing")
+            raise Exception("Config Variable HANDLER_FILE - missing")
 
     def create_deployment(self, name, model_uri, flavor=None, config=None):
         """
         Deploy the model at the model_uri to the specified target
         """
 
+        version = 1.0
+        is_version_provided = False
+        if config:
+            for key in config:
+                if key.upper() == "VERSION":
+                    version = float(config[key])
+                    is_version_provided = True
+                self.server_config[key.lower()] = str(config[key])
+
         self.__validate_mandatory_arguments()
+
+        if not is_version_provided:
+            version = self.__get_max_version(name)
+
         mar_file_path = self.__generate_mar_file(
             model_name=name,
-            version=self.server_config["version"],
+            version=str(version),
             model_file=self.server_config["model_file"],
             handler_file=self.server_config["handler_file"],
             extra_files=self.server_config["extra_files"],
             model_uri=model_uri,
         )
+
+        config_registration = {
+            key: val
+            for key, val in config.items()
+            if key not in ["VERSION", "MODEL_FILE", "HANDLER_FILE"]
+        }
+
         self.__register_model(
             mar_file_path=mar_file_path,
             name=name,
             model_uri=model_uri,
             flavor=flavor,
-            config=config,
+            config=config_registration,
         )
 
         return {"name": name, "flavor": flavor}
 
-    def delete_deployment(self, name):
+    def delete_deployment(self, name, config=None):
         """
         Delete the deployment with the name given at --name from the specified target
         """
 
-        version = self.server_config["version"]
+        version = "1.0"
+        if config:
+            for key in config:
+                if key.upper() == "VERSION":
+                    version = str(config[key])
+
         url = "{}/{}/{}/{}".format(self.management_api, "models", name, version)
         resp = requests.delete(url)
         if resp.status_code != 200:
@@ -165,21 +187,27 @@ class TorchServePlugin(BaseDeploymentClient):
         in the specified target
         """
 
-        url = "{}/{}/{}".format(self.management_api, "models", name)
+        url = "{}/{}/{}/{}".format(self.management_api, "models", name, "all")
         resp = requests.get(url)
         if resp.status_code != 200:
-            raise Exception(
+            raise ValueError(
                 "Unable to get deployments with name %s. Server returned status code %s and response: %s"
                 % (name, resp.status_code, resp.content)
             )
         return {"deploy": resp.text}
 
-    def predict(self, deployment_name, df):
+    def predict(self, deployment_name, df, config={}):
         """
         Predict using the inference api
         Takes dataframe, Tensor or json string as input and returns output as string
         """
-        version = self.server_config["version"]
+
+        version = "1.0"
+        if config:
+            for key in config:
+                if key.upper() == "VERSION":
+                    version = str(config[key])
+
         url = "{}/{}/{}/{}".format(
             self.inference_api, "predictions", deployment_name, version
         )
@@ -275,6 +303,7 @@ class TorchServePlugin(BaseDeploymentClient):
             mar_file = "{}/{}/{}.mar".format(os.getcwd(), model_store, model_name)
             if os.path.isfile(mar_file):
                 print("{} file generated successfully".format(mar_file))
+
         return mar_file
 
     def __register_model(
@@ -291,11 +320,31 @@ class TorchServePlugin(BaseDeploymentClient):
             query_path += "&initial_workers=" + str(1)
 
         url = "{}/{}?url={}".format(self.management_api, "models", query_path)
+
         resp = requests.post(url=url)
 
         if resp.status_code != 200:
             raise Exception("Unable to register the model")
         return True
+
+    def __get_max_version(self, name):
+        """
+        Returns the maximum version for the same model name
+        """
+        try:
+            get_response = self.get_deployment(name)
+        except ValueError:
+            get_response = None
+
+        max_version = 1.0
+
+        if get_response:
+            for model in json.loads(get_response["deploy"]):
+                model_version = float(model["modelVersion"])
+                if model_version > max_version:
+                    max_version = model_version
+            max_version += 1.0
+        return max_version
 
 
 def run_local(name, model_uri, flavor=None, config=None):

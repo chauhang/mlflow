@@ -134,14 +134,16 @@ def update_deployment(flavor, model_uri, target, name, config):
 
 
 @commands.command("delete")
+@parse_custom_arguments
 @deployment_name
 @target_details
-def delete_deployment(target, name):
+def delete_deployment(target, name, config):
     """
     Delete the deployment with name given at `--name` from the specified target.
     """
+    config_dict = _user_args_to_dict(config)
     client = interface.get_deploy_client(target)
-    client.delete_deployment(name)
+    client.delete_deployment(name, config_dict)
     click.echo("Deployment {} is deleted".format(name))
 
 
@@ -198,17 +200,19 @@ def run_local(flavor, model_uri, target, name, config):
 
 
 @commands.command("predict")
+@parse_custom_arguments
 @deployment_name
 @target_details
 @parse_input
 @parse_output
-def predict(target, name, input_path, output_path):
+def predict(target, name, input_path, output_path, config):
     """
     Predict the results for the deployed model for the given input(s)
     """
+    config_dict = _user_args_to_dict(config)
     df = pd.read_json(input_path)
     client = interface.get_deploy_client(target)
-    result = client.predict(name, df)
+    result = client.predict(name, df, config_dict)
     click.echo("\n")
     click.echo("RESULT IS: {}".format(result))
     click.echo("\n")
