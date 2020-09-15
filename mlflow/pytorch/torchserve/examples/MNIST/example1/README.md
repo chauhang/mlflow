@@ -2,15 +2,16 @@
 
 ## Package Requirement
 
-Following are the list of packages which needs to be installed before running the example
+Install the required packages using the following command
 
-1. torch-model-archiver
-2. torchserve
-3. mlflow
-4. numpy
-5. matplotlib
-6. mlflow-torchserve deployment plugin
+`pip install -r requirements.txt`
 
+## Installing Deployment plugin
+
+move to `mlflow/pytorch/torchserve` and run the following commands to install deployment plugin
+
+`python setup.py build`
+`python setup.py install`
 
 ## Generating model file (.pt)
 
