@@ -1,26 +1,26 @@
 import atexit
 import json
 import os
-import pytest
 import shutil
 import subprocess
 import time
+
+import pytest
 from click.testing import CliRunner
-import mock
 
 from mlflow import deployments
 from mlflow.deployments import cli
 
 f_target = "torchserve"
-f_deployment_id = "test"
+f_deployment_id = "cli_test"
 f_flavor = None
 f_model_uri = os.path.join("mlflow/pytorch/torchserve/tests/resources", "linear.pt")
 
-env_version = "1.0"
-env_model_file = os.path.join(
+model_version = "1.0"
+model_file_path = os.path.join(
     "mlflow/pytorch/torchserve/tests/resources", "linear_model.py"
 )
-env_handler_file = os.path.join(
+handler_file_path = os.path.join(
     "mlflow/pytorch/torchserve/tests/resources", "linear_handler.py"
 )
 sample_input_file = os.path.join(
@@ -72,34 +72,54 @@ def stop_torchserve():
 atexit.register(stop_torchserve)
 
 
-@mock.patch.dict(
-    os.environ,
-    {
-        "VERSION": env_version,
-        "MODEL_FILE": env_model_file,
-        "HANDLER_FILE": env_handler_file,
-    },
-)
 def test_create_cli_success(start_torchserve):
+    version = "VERSION={model_version}".format(model_version=model_version)
+    model_file = "MODEL_FILE={model_file_path}".format(model_file_path=model_file_path)
+    handler_file = "HANDLER_FILE={handler_file_path}".format(handler_file_path=handler_file_path)
     client = deployments.get_deploy_client(f_target)
     runner = CliRunner()
     res = runner.invoke(
         cli.create_deployment,
-        ["-f", f_flavor, "-m", f_model_uri, "-t", f_target, "--name", f_deployment_id],
-    )
-    assert "{} deployment {} is created".format(f_flavor, f_deployment_id) in res.stdout
-    client.delete_deployment(f_deployment_id)
-    res = runner.invoke(
-        cli.create_deployment,
         [
-            "--flavor",
+            "-f",
             f_flavor,
-            "--model-uri",
+            "-m",
             f_model_uri,
-            "--target",
+            "-t",
             f_target,
             "--name",
             f_deployment_id,
+            "-C",
+            version,
+            "-C",
+            model_file,
+            "-C",
+            handler_file,
+        ],
+    )
+    assert "{} deployment {} is created".format(f_flavor, f_deployment_id) in res.stdout
+
+
+def test_create_cli_no_version_success():
+    model_file = "MODEL_FILE={model_file_path}".format(model_file_path=model_file_path)
+    handler_file = "HANDLER_FILE={handler_file_path}".format(handler_file_path=handler_file_path)
+    client = deployments.get_deploy_client(f_target)
+    runner = CliRunner()
+    res = runner.invoke(
+        cli.create_deployment,
+        [
+            "-f",
+            f_flavor,
+            "-m",
+            f_model_uri,
+            "-t",
+            f_target,
+            "--name",
+            f_deployment_id,
+            "-C",
+            model_file,
+            "-C",
+            handler_file,
         ],
     )
     assert "{} deployment {} is created".format(f_flavor, f_deployment_id) in res.stdout
@@ -121,8 +141,8 @@ def test_update_cli_success():
         ],
     )
     assert (
-        "Deployment {} is updated (with flavor {})".format(f_deployment_id, f_flavor)
-        in res.stdout
+            "Deployment {} is updated (with flavor {})".format(f_deployment_id, f_flavor)
+            in res.stdout
     )
 
 
@@ -140,10 +160,20 @@ def test_get_cli_success():
     assert "{}".format(f_deployment_id) in res.stdout
 
 
-@mock.patch.dict(os.environ, {"VERSION": env_version})
 def test_delete_cli_success():
+    version = "VERSION=2.0"
     runner = CliRunner()
     res = runner.invoke(
-        cli.delete_deployment, ["--name", f_deployment_id, "--target", f_target]
+        cli.delete_deployment,
+        ["--name", f_deployment_id, "--target", f_target, "-C", version],
+    )
+    assert "Deployment {} is deleted".format(f_deployment_id) in res.stdout
+
+
+def test_delete_no_version_cli_success():
+    runner = CliRunner()
+    res = runner.invoke(
+        cli.delete_deployment,
+        ["--name", f_deployment_id, "--target", f_target],
     )
     assert "Deployment {} is deleted".format(f_deployment_id) in res.stdout
