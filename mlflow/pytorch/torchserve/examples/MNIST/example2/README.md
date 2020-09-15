@@ -20,13 +20,6 @@ By default,  the script exports the model file as `model_cnn.pt`
 
 Command: `python mnist_model.py --epochs 5`
 
-## Setting Environment variables
-
-Following are the mandatory variables to be set before running the torchserve plugin.
-1. VERSION - version number needed for generating mar file. `export VERSION=1.0`
-2. MODEL_FILE - model file path. `export MODEL_FILE_PATH=mnist_model.py`
-3. HANDLER_FILE - handler file path. `export HANDLER_FILE=mnist_handler.py`
-
 ## Starting torchserve
 
 create an empty directory `model_store` and run the following command to start torchserve.

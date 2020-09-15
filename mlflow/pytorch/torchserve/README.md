@@ -8,13 +8,6 @@ Following are the list of packages which needs to be installed before running th
 2. torchserve
 3. mlflow
 
-## Setting Environment variables
-
-Following are the mandatory variables to be set before running the torchserve plugin.
-1. VERSION - version number needed for generating mar file . Ex:  ```VERSION: 1.0```
-2. MODEL_FILE - model file path Ex: ```MODEL_FILE_PATH: /home/ubuntu/linear/linear_regression.py```
-3. HANDLER_FILE - handler file path Ex: ```HANDLER_FILE: /home/ubuntu/linear/linear_handler.py```
-
 ## Steps to build the package
 
 Run the following commands to build the package
@@ -26,8 +19,8 @@ Run the following commands to build the package
 
 ## Sample Commands for deployment
 
-1. Creating a new deployment - ```mlflow deployments create -t TARGET -m MODEL_URI --name DEPLOYMENT_NAME```
-For Example: ```mlflow deployments create -t torchserve -m /home/ubuntu/deploy/linear.pt --name linear3```
+1. Creating a new deployment - ```mlflow deployments create -t TARGET -m MODEL_URI --name DEPLOYMENT_NAME -C 'MODEL_FILE=MODEL_FILE_PATH' -C 'HANDLER_FILE=HANDLER_FILE_PATH'```
+For Example: ```mlflow deployments create -t torchserve -m /home/ubuntu/deploy/linear.pt --name linear3  -C "MODEL_FILE=linear_model.py" -C "HANDLER_FILE=linear_handler.py"```
 
 2. List all deployments - ```mlflow deployments list -t TARGET```
 For Example: ```mlflow deployments list -t torchserve```
