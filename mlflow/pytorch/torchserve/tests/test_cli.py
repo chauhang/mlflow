@@ -33,7 +33,7 @@ def start_torchserve():
     if not os.path.isdir("model_store"):
         os.makedirs("model_store")
     cmd = "torchserve --start --model-store {}".format("./model_store")
-    return_code = subprocess.Popen(cmd, shell=True).wait()
+    _ = subprocess.Popen(cmd, shell=True).wait()
 
     count = 0
     for _ in range(5):
@@ -55,7 +55,7 @@ def start_torchserve():
 
 def health_checkup():
     curl_cmd = "curl http://localhost:8080/ping"
-    (value, err) = subprocess.Popen(
+    (value, _) = subprocess.Popen(
         [curl_cmd], stdout=subprocess.PIPE, shell=True
     ).communicate()
     return value.decode("utf-8")
@@ -63,7 +63,7 @@ def health_checkup():
 
 def stop_torchserve():
     cmd = "torchserve --stop"
-    return_code = subprocess.Popen(cmd, shell=True).wait()
+    _ = subprocess.Popen(cmd, shell=True).wait()
 
     if os.path.isdir("model_store"):
         shutil.rmtree("model_store")
@@ -72,11 +72,12 @@ def stop_torchserve():
 atexit.register(stop_torchserve)
 
 
-def test_create_cli_success(start_torchserve):
+@pytest.mark.usefixtures("start_torchserve")
+def test_create_cli_success():
     version = "VERSION={model_version}".format(model_version=model_version)
     model_file = "MODEL_FILE={model_file_path}".format(model_file_path=model_file_path)
     handler_file = "HANDLER_FILE={handler_file_path}".format(handler_file_path=handler_file_path)
-    client = deployments.get_deploy_client(f_target)
+    _ = deployments.get_deploy_client(f_target)
     runner = CliRunner()
     res = runner.invoke(
         cli.create_deployment,
@@ -103,7 +104,7 @@ def test_create_cli_success(start_torchserve):
 def test_create_cli_no_version_success():
     model_file = "MODEL_FILE={model_file_path}".format(model_file_path=model_file_path)
     handler_file = "HANDLER_FILE={handler_file_path}".format(handler_file_path=handler_file_path)
-    client = deployments.get_deploy_client(f_target)
+    _ = deployments.get_deploy_client(f_target)
     runner = CliRunner()
     res = runner.invoke(
         cli.create_deployment,
@@ -141,8 +142,8 @@ def test_update_cli_success():
         ],
     )
     assert (
-            "Deployment {} is updated (with flavor {})".format(f_deployment_id, f_flavor)
-            in res.stdout
+        "Deployment {} is updated (with flavor {})".format(f_deployment_id, f_flavor)
+        in res.stdout
     )
 
 

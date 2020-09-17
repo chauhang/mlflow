@@ -1,5 +1,5 @@
+# pylint: disable=W0223
 from collections import defaultdict
-
 import numpy as np
 import pandas as pd
 import torch
@@ -48,7 +48,7 @@ class GPReviewDataset(Dataset):
             "review_text": review,
             "input_ids": encoding["input_ids"].flatten(),
             "attention_mask": encoding["attention_mask"].flatten(),
-            "targets": torch.tensor(target, dtype=torch.long),
+            "targets": torch.Tensor(target, dtype=torch.long),
         }
 
 
@@ -58,6 +58,20 @@ class SentimentClassifier(nn.Module):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.PRE_TRAINED_MODEL_NAME = "bert-base-cased"
         self.EPOCHS = 5
+        self.df = None
+        self.tokenizer = None
+        self.df_train = None
+        self.df_val = None
+        self.df_test = None
+        self.train_data_loader = None
+        self.val_data_loader = None
+        self.test_data_loader = None
+        self.optimizer = None
+        self.total_steps = None
+        self.scheduler = None
+        self.loss_fn = None
+        self.BATCH_SIZE = 32
+        self.MAX_LEN = 160
         n_classes = len(class_names)
 
         self.bert = BertModel.from_pretrained(self.PRE_TRAINED_MODEL_NAME)
@@ -106,9 +120,6 @@ class SentimentClassifier(nn.Module):
         self.df_val, self.df_test = train_test_split(
             self.df_test, test_size=0.5, random_state=RANDOM_SEED
         )
-
-        self.BATCH_SIZE = 32
-        self.MAX_LEN = 160
 
         self.train_data_loader = self.create_data_loader(
             self.df_train, self.tokenizer, self.MAX_LEN, self.BATCH_SIZE

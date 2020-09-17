@@ -4,9 +4,9 @@ import os
 import shutil
 import subprocess
 import time
+import torch
 
 import pytest
-import torch
 
 from mlflow import deployments
 from mlflow.exceptions import MlflowException
@@ -36,7 +36,7 @@ def start_torchserve():
     if not os.path.isdir("model_store"):
         os.makedirs("model_store")
     cmd = "torchserve --start --model-store {}".format("./model_store")
-    return_code = subprocess.Popen(cmd, shell=True).wait()
+    _ = subprocess.Popen(cmd, shell=True).wait()
 
     count = 0
     for _ in range(5):
@@ -58,7 +58,7 @@ def start_torchserve():
 
 def health_checkup():
     curl_cmd = "curl http://localhost:8080/ping"
-    (value, err) = subprocess.Popen(
+    (value, _) = subprocess.Popen(
         [curl_cmd], stdout=subprocess.PIPE, shell=True
     ).communicate()
     return value.decode("utf-8")
@@ -66,7 +66,7 @@ def health_checkup():
 
 def stop_torchserve():
     cmd = "torchserve --stop"
-    return_code = subprocess.Popen(cmd, shell=True).wait()
+    _ = subprocess.Popen(cmd, shell=True).wait()
 
     if os.path.isdir("model_store"):
         shutil.rmtree("model_store")
@@ -75,7 +75,8 @@ def stop_torchserve():
 atexit.register(stop_torchserve)
 
 
-def test_create_deployment_success(start_torchserve):
+@pytest.mark.usefixtures("start_torchserve")
+def test_create_deployment_success():
     client = deployments.get_deploy_client(f_target)
     ret = client.create_deployment(
         f_deployment_id,
@@ -260,7 +261,7 @@ def test_delete_invalid_name():
 
 def test_predict_exception():
     with pytest.raises(
-        Exception, match="Input data can either be dataframe or Json string"
+        Exception, match="Unable to parse input json string"
     ):
         client = deployments.get_deploy_client(f_target)
         client.predict(f_dummy, "sample")

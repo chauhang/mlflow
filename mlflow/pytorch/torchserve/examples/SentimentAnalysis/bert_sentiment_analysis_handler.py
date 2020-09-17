@@ -34,11 +34,11 @@ class BERTSentimentHandler(object):
         # Read model serialize/pt file
         model_pt_path = os.path.join(model_dir, "bert_pytorch.pt")
         # Read model definition file
-        model_def_path = os.path.join(model_dir, "sentiment_analysis_with_bert.py")
+        model_def_path = os.path.join(model_dir, "bert_sentiment_analysis.py")
         if not os.path.isfile(model_def_path):
             raise RuntimeError("Missing the model definition file")
 
-        from sentiment_analysis_with_bert import SentimentClassifier
+        from bert_sentiment_analysis import SentimentClassifier
 
         state_dict = torch.load(model_pt_path, map_location=self.device)
         self.model = SentimentClassifier()
@@ -46,7 +46,7 @@ class BERTSentimentHandler(object):
         self.model.to(self.device)
         self.model.eval()
 
-        logger.debug("Model file {0} loaded successfully".format(model_pt_path))
+        logger.debug("Model file %s loaded successfully", model_pt_path)
         self.initialized = True
 
     def preprocess(self, data):
@@ -74,7 +74,7 @@ class BERTSentimentHandler(object):
 
         return encoding
 
-    def inference(self, encoding, topk=5):
+    def inference(self, encoding):
         """ Predict the class whether it is Positive / Neutral / Negative
         """
 

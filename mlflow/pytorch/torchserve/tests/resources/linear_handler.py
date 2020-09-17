@@ -1,5 +1,5 @@
 
-### IMPORTS SECTION ###
+# IMPORTS SECTION #
 
 import logging
 import os
@@ -12,7 +12,7 @@ import json
 logger = logging.getLogger(__name__)
 
 
-### CLASS DEFINITION ###
+# CLASS DEFINITION #
 
 class LinearRegressionHandler(object):
     def __init__(self):
@@ -47,7 +47,7 @@ class LinearRegressionHandler(object):
         self.model.to(self.device)
         self.model.eval()
 
-        logger.debug("Model file {0} loaded successfully".format(model_pt_path))
+        logger.debug("Model file %s loaded successfully", model_pt_path)
         self.initialized = True
 
     def preprocess(self, data):
@@ -88,7 +88,7 @@ class LinearRegressionHandler(object):
         return inference_output
 
 
-### CLASS INITIALIZATION ###
+# CLASS INITIALIZATION #
 
 _service = LinearRegressionHandler()
 

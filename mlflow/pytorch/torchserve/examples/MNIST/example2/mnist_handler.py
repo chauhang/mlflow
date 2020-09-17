@@ -26,7 +26,11 @@ class MNISTDigitClassifier(object):
         """First try to load torchscript else load eager mode state_dict based model"""
 
         properties = ctx.system_properties
-        self.device = torch.device("cuda:" + str(properties.get("gpu_id")) if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(
+            "cuda:" + str(properties.get("gpu_id"))
+            if torch.cuda.is_available()
+            else "cpu"
+        )
         model_dir = properties.get("model_dir")
 
         # Read model serialize/pt file
@@ -42,13 +46,13 @@ class MNISTDigitClassifier(object):
         self.model.to(self.device)
         self.model.eval()
 
-        logger.debug('Model file {0} loaded successfully'.format(model_pt_path))
+        logger.debug("Model file %s loaded successfully", model_pt_path)
         self.initialized = True
 
     def preprocess(self, data):
         """
-         Scales, crops, and normalizes a PIL image for a MNIST model,
-         returns an Numpy array
+        Scales, crops, and normalizes a PIL image for a MNIST model,
+        returns an Numpy array
         """
 
         image = data[0].get("data")
@@ -59,9 +63,8 @@ class MNISTDigitClassifier(object):
         image = torch.Tensor(json.loads(image)["data"])
         return image
 
-    def inference(self, img, topk=5):
-        ''' Predict the class (or classes) of an image using a trained deep learning model.
-        '''
+    def inference(self, img):
+        """Predict the class (or classes) of an image using a trained deep learning model."""
         # Convert 2D image to 1D vector
         img = np.expand_dims(img, 0)
         img = torch.from_numpy(img)

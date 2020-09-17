@@ -47,7 +47,7 @@ class MNISTDigitClassifier(object):
         self.model.to(self.device)
         self.model.eval()
 
-        logger.debug("Model file {0} loaded successfully".format(model_pt_path))
+        logger.debug("Model file %s loaded successfully", model_pt_path)
         self.initialized = True
 
     def preprocess(self, data):
@@ -68,7 +68,7 @@ class MNISTDigitClassifier(object):
         image = mnist_transform(image)
         return image
 
-    def inference(self, img, topk=5):
+    def inference(self, img):
         """ Predict the class (or classes) of an image using a trained deep learning model.
         """
         # Convert 2D image to 1D vector

@@ -9,6 +9,8 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
 
+# pylint: disable=W0223
+
 
 class Net(nn.Module):
     def __init__(self):
