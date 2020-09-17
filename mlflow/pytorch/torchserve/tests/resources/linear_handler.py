@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 from linear_model import LinearRegression
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +55,15 @@ class LinearRegressionHandler(object):
         """
         Preprocess the input to tensor and reshape it to be used as input to the network
         """
-
         data = data[0]
-        number = float(data["data"])
+        image = data.get("data")
+        if image is None:
+            image = data.get("body")
+            image = image.decode("utf-8")
+            number = float(json.loads(image)['data'][0])
+        else:
+            number = float(image)
+
         np_data = np.array(number, dtype=np.float32)
         np_data = np_data.reshape(-1, 1)
         data_tensor = torch.from_numpy(np_data)

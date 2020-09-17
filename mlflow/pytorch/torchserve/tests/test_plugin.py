@@ -6,6 +6,7 @@ import subprocess
 import time
 
 import pytest
+import torch
 
 from mlflow import deployments
 from mlflow.exceptions import MlflowException
@@ -136,7 +137,7 @@ def test_wrong_target_name():
 def test_update_deployment_success():
     client = deployments.get_deploy_client(f_target)
     ret = client.update_deployment(f_deployment_id)
-    assert ret["flavor"] == None
+    assert ret["flavor"] is None
 
 
 def test_predict_success():
@@ -144,7 +145,14 @@ def test_predict_success():
     with open(sample_input_file) as fp:
         data = fp.read()
     pred = client.predict(f_deployment_id, data)
-    assert pred != None
+    assert pred is not None
+
+
+def test_predict_tensor_input():
+    client = deployments.get_deploy_client(f_target)
+    data = torch.Tensor([5000])
+    pred = client.predict(f_deployment_id, data)
+    assert pred is not None
 
 
 def test_delete_success():
