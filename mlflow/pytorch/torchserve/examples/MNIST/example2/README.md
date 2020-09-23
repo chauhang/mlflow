@@ -30,10 +30,13 @@ create an empty directory `model_store` and run the following command to start t
 
 ## Creating and predict deployment
 
-This example uses tensor as input for prediction. In the example 1, mlflow cli is used to creating and predicting
-the deployed models. 
+This example uses tensor as input for prediction.
 
-In this example, the create and predict deployment can be invoked using python script. 
+In the previous example(example1), mlflow cli is used for predict. Input image path is provided as a cli argument.
+
+Python plugin accepts 3 different types of input for prediction - Dataframe, Json and Tensor.
+
+This example demonstrates input as tensor (refer `predict.py` where images are converted to tensor)
 
 Run the following command to create and predict the output based on our test data - `test_data/one.png`
 
