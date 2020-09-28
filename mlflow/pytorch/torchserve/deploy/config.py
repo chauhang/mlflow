@@ -3,6 +3,9 @@ import os
 
 class Config(dict):
     def __init__(self):
+        """
+        Initializes constants from Environment variables
+        """
         super().__init__()
         self["version"] = os.environ.get("VERSION")
         self["model_file"] = os.environ.get("MODEL_FILE")

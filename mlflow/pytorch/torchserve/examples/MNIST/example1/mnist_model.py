@@ -13,6 +13,9 @@ from torch.optim.lr_scheduler import StepLR
 
 class Net(nn.Module):
     def __init__(self):
+        """
+        Initializes the layers of the model
+        """
         super(Net, self).__init__()
         self.conv1 = nn.Conv2d(1, 32, 3, 1)
         self.conv2 = nn.Conv2d(32, 64, 3, 1)
@@ -22,6 +25,13 @@ class Net(nn.Module):
         self.fc2 = nn.Linear(128, 10)
 
     def forward(self, x):
+        """
+        Does the propagation of the network with the inputs given
+
+        :param x: Input to be passed through the layers for prediction
+
+        :return: output - Output of the softmax layer
+        """
         x = self.conv1(x)
         x = F.relu(x)
         x = self.conv2(x)
@@ -38,6 +48,18 @@ class Net(nn.Module):
 
 
 def train(args, model, device, train_loader, optimizer, epoch):
+    """
+    Training the data as batches
+
+    :param args: Input cli arguments
+    :param model: Instance of the class Net
+    :param device: CUDA support if available
+    :param train_loader: Dataloader with training data
+    :param optimizer: optimzier to be used in the training of the model
+    :param epoch: Number of epochs
+
+    """
+
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
@@ -61,6 +83,14 @@ def train(args, model, device, train_loader, optimizer, epoch):
 
 
 def test(model, device, test_loader):
+    """
+    Tesing the model after training has been done on unseen data
+
+    :param model: Instance of the class Net
+    :param device: CUDA support if available
+    :param test_loader: Dataloader with testing data
+
+    """
     model.eval()
     test_loss = 0
     correct = 0

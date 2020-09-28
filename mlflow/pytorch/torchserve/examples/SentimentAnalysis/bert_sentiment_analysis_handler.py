@@ -21,7 +21,11 @@ class BERTSentimentHandler(object):
         self.initialized = False
 
     def initialize(self, ctx):
-        """First try to load torchscript else load eager mode state_dict based model"""
+        """
+        First try to load torchscript else load eager mode state_dict based model
+
+        :param ctx: System properties
+        """
 
         properties = ctx.system_properties
         self.device = torch.device(
@@ -52,6 +56,10 @@ class BERTSentimentHandler(object):
     def preprocess(self, data):
         """
         Receives text in form of json and converts it into an encoding for the inference stage
+
+        :param data: Input to be passed through the layers for prediction
+
+        :return: output - preprocessed encoding
         """
 
         text = data[0].get("data")
@@ -75,7 +83,12 @@ class BERTSentimentHandler(object):
         return encoding
 
     def inference(self, encoding):
-        """ Predict the class whether it is Positive / Neutral / Negative
+        """
+        Predict the class whether it is Positive / Neutral / Negative
+
+        :param encoding: Input encoding to be passed through the layers for prediction
+
+        :return: output - predicted output
         """
 
         self.model.eval()
@@ -86,6 +99,13 @@ class BERTSentimentHandler(object):
         return [out.item()]
 
     def postprocess(self, inference_output):
+        """
+        Does postprocess after inference to be returned to user
+
+        :param inference_output: Output of inference
+
+        :return: output - Output after post processing
+        """
         return inference_output
 
 
@@ -93,6 +113,14 @@ _service = BERTSentimentHandler()
 
 
 def handle(data, context):
+    """
+    Default function that is called when predict is invoked
+
+    :param data: Input to be passed through the layers for prediction
+    :param context: dict containing system properties
+
+    :return: output - Output after postprocess
+    """
     if not _service.initialized:
         _service.initialize(context)
 

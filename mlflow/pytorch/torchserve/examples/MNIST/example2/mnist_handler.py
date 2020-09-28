@@ -4,7 +4,7 @@ import os
 
 import numpy as np
 import torch
-from mnist_model import Net
+from torchserve.examples.MNIST.example2.mnist_model import Net
 from torch.autograd import Variable
 
 logger = logging.getLogger(__name__)
@@ -23,8 +23,11 @@ class MNISTDigitClassifier(object):
         self.initialized = False
 
     def initialize(self, ctx):
-        """First try to load torchscript else load eager mode state_dict based model"""
+        """
+        First try to load torchscript else load eager mode state_dict based model
 
+        :param ctx: System properties
+        """
         properties = ctx.system_properties
         self.device = torch.device(
             "cuda:" + str(properties.get("gpu_id"))
@@ -52,7 +55,11 @@ class MNISTDigitClassifier(object):
     def preprocess(self, data):
         """
         Scales, crops, and normalizes a PIL image for a MNIST model,
-        returns an Numpy array
+         returns an Numpy array
+
+        :param data: Input to be passed through the layers for prediction
+
+        :return: output - Preprocessed image
         """
 
         image = data[0].get("data")
@@ -64,7 +71,13 @@ class MNISTDigitClassifier(object):
         return image
 
     def inference(self, img):
-        """Predict the class (or classes) of an image using a trained deep learning model."""
+        """
+        Predict the class (or classes) of an image using a trained deep learning model
+
+        :param img: Input to be passed through the layers for prediction
+
+        :return: output - Predicted label for the given input
+        """
         # Convert 2D image to 1D vector
         img = np.expand_dims(img, 0)
         img = torch.from_numpy(img)
@@ -78,6 +91,13 @@ class MNISTDigitClassifier(object):
         return [predicted_idx]
 
     def postprocess(self, inference_output):
+        """
+        Does postprocess after inference to be returned to user
+
+        :param inference_output: Output of inference
+
+        :return: output - Output after post processing
+        """
         return inference_output
 
 
@@ -85,6 +105,14 @@ _service = MNISTDigitClassifier()
 
 
 def handle(data, context):
+    """
+    Default function that is called when predict is invoked
+
+    :param data: Input to be passed through the layers for prediction
+    :param context: dict containing system properties
+
+    :return: output - Output after postprocess
+    """
     if not _service.initialized:
         _service.initialize(context)
 

@@ -64,6 +64,13 @@ class TorchServePlugin(BaseDeploymentClient):
     def create_deployment(self, name, model_uri, flavor=None, config=None):
         """
         Deploy the model at the model_uri to the specified target
+
+        :param name: Name of the of the model
+        :param model_uri: Serialized python file [.pt or .pth]
+        :param flavor: Flavor of the deployed model
+        :param config: Configuration parameters like model file path, handler path
+
+        :return: output - Returns a dict with flavor and name as keys
         """
 
         version = 1.0
@@ -106,6 +113,11 @@ class TorchServePlugin(BaseDeploymentClient):
     def delete_deployment(self, name, config=None):
         """
         Delete the deployment with the name given at --name from the specified target
+
+        :param name: Name of the of the model
+        :param config: Configuration parameters like model file path, handler path
+
+        :return: None
         """
 
         version = "1.0"
@@ -127,8 +139,14 @@ class TorchServePlugin(BaseDeploymentClient):
     def update_deployment(self, name, model_uri=None, flavor=None, config=None):
         """
         Update the deployment with the name given at --name from the specified target
-
         Using -C or --config additional parameters shall be updated for the corresponding model
+
+        :param name: Name of the of the model
+        :param model_uri: Serialized python file [.pt or .pth]
+        :param flavor: Flavor of the deployed model
+        :param config: Configuration parameters like model file path, handler path
+
+        :return: output - Returns a dict with flavor as key
         """
 
         query_path = ""
@@ -154,6 +172,8 @@ class TorchServePlugin(BaseDeploymentClient):
         """
         List the names of all model deployments in the specified target.
         These names can be used with delete, update and get commands
+
+        :return: output - Returns a list of models of the target
         """
 
         deployment_list = []
@@ -185,6 +205,10 @@ class TorchServePlugin(BaseDeploymentClient):
         """
         Print the detailed description of the deployment with the name given at --name
         in the specified target
+
+        :param name: Name of the of the model
+
+        :return: output - Returns a dict with deploy as key and info about the model specified as value
         """
 
         url = "{}/{}/{}/{}".format(self.management_api, "models", name, "all")
@@ -201,6 +225,12 @@ class TorchServePlugin(BaseDeploymentClient):
         """
         Predict using the inference api
         Takes dataframe, Tensor or json string as input and returns output as string
+
+        :param deployment_name: Name of the of the model
+        :param df: Dataframe object or json object as input
+        :param config: Configuration parameters like model version
+
+        :return: output - Returns the predicted value
         """
 
         version = "1.0"

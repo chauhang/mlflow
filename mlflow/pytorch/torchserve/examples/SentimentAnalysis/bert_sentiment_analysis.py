@@ -20,6 +20,9 @@ class_names = ["negative", "neutral", "positive"]
 
 
 class GPReviewDataset(Dataset):
+    """
+    Constructs the encoding with the dataset
+    """
     def __init__(self, reviews, targets, tokenizer, max_len):
         self.reviews = reviews
         self.targets = targets
@@ -79,6 +82,12 @@ class SentimentClassifier(nn.Module):
         self.out = nn.Linear(self.bert.config.hidden_size, n_classes)
 
     def forward(self, input_ids, attention_mask):
+        """
+        :param input_ids: Input sentences from the batch
+        :param attention_mask: Attention mask returned by the encoder
+
+        :return: output - sentiment for the input text
+        """
         _, pooled_output = self.bert(input_ids=input_ids, attention_mask=attention_mask)
         output = self.drop(pooled_output)
         return self.out(output)
@@ -94,6 +103,14 @@ class SentimentClassifier(nn.Module):
             return 2
 
     def create_data_loader(self, df, tokenizer, max_len, batch_size):
+        """
+        :param df: DataFrame input
+        :param tokenizer: Bert tokenizer
+        :param max_len: maximum length of the input sentence
+        :param batch_size: Input batch size
+
+        :return: output - Corresponding data loader for the given input
+        """
         ds = GPReviewDataset(
             reviews=df.content.to_numpy(),
             targets=df.sentiment.to_numpy(),
@@ -104,6 +121,9 @@ class SentimentClassifier(nn.Module):
         return DataLoader(ds, batch_size=batch_size, num_workers=4)
 
     def prepare_data(self):
+        """
+        Creates train, valid and test dataloaders from the csv data
+        """
         self.df = pd.read_csv(
             "https://drive.google.com/uc?id=1zdmewp7ayS4js4VtrJEHzAheSW-5NBZv"
         )
@@ -132,6 +152,9 @@ class SentimentClassifier(nn.Module):
         )
 
     def setOptimizer(self):
+        """
+        Sets the optimizer and scheduler functions
+        """
         self.optimizer = AdamW(model.parameters(), lr=2e-5, correct_bias=False)
         self.total_steps = len(self.train_data_loader) * self.EPOCHS
 
@@ -142,6 +165,11 @@ class SentimentClassifier(nn.Module):
         self.loss_fn = nn.CrossEntropyLoss().to(self.device)
 
     def startTraining(self, model):
+        """
+        Initialzes the Traning step with the model initialized
+
+        :param model: Instance of the Sentimentclassifier class
+        """
         history = defaultdict(list)
         best_accuracy = 0
 
@@ -166,6 +194,14 @@ class SentimentClassifier(nn.Module):
                 best_accuracy = val_acc
 
     def train_epoch(self, model):
+        """
+        Training process happens and accuracy is returned as output
+
+        :param model: Instance of the Sentimentclassifier class
+
+        :result: output - Accuracy of the model after training
+        """
+
         model = model.train()
         losses = []
         correct_predictions = 0
@@ -195,6 +231,14 @@ class SentimentClassifier(nn.Module):
         )
 
     def eval_model(self, model, data_loader):
+        """
+        Validation process happens and validation / test accuracy is returned as output
+
+        :param model: Instance of the Sentimentclassifier class
+        :param data_loader: Data loader for either test / validation dataset
+
+        :result: output - Accuracy of the model after testing
+        """
         model = model.eval()
 
         losses = []
@@ -217,6 +261,15 @@ class SentimentClassifier(nn.Module):
         return correct_predictions.double() / len(data_loader), np.mean(losses)
 
     def get_predictions(self, model, data_loader):
+
+        """
+        Prediction after the training step is over
+
+        :param model: Instance of the Sentimentclassifier class
+        :param data_loader: Data loader for either test / validation dataset
+
+        :result: output - Returns prediction results, prediction probablities and corresponding values
+        """
         model = model.eval()
 
         review_texts = []
