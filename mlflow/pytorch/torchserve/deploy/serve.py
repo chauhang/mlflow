@@ -87,19 +87,22 @@ class TorchServePlugin(BaseDeploymentClient):
         if not is_version_provided:
             version = self.__get_max_version(name)
 
+        if "extra_files" not in self.server_config:
+            self.server_config["extra_files"] = None
+
         mar_file_path = self.__generate_mar_file(
             model_name=name,
             version=str(version),
             model_file=self.server_config["model_file"],
             handler_file=self.server_config["handler_file"],
             extra_files=self.server_config["extra_files"],
-            model_uri=model_uri,
+            model_uri=model_uri
         )
 
         config_registration = {
             key: val
             for key, val in config.items()
-            if key not in ["VERSION", "MODEL_FILE", "HANDLER_FILE"]
+            if key.upper() not in ["VERSION", "MODEL_FILE", "HANDLER_FILE", "EXTRA_FILES"]
         }
 
         self.__register_model(
@@ -278,6 +281,8 @@ class TorchServePlugin(BaseDeploymentClient):
         """
         valid_file_suffixes = [".pt", ".pth"]
         requirements_file = "requirements.txt"
+        artifact_directory_name = "artifacts"
+        artifacts_list = []
         req_file_path = None
 
         if not os.path.isfile(model_uri):
@@ -293,12 +298,20 @@ class TorchServePlugin(BaseDeploymentClient):
                 if path.suffix in valid_file_suffixes:
                     model_uri = path
                 else:
-                    for root, _, files in os.walk(path, topdown=False):
+                    for root, dirs, files in os.walk(path, topdown=False):
                         for name in files:
                             if Path(name).suffix in valid_file_suffixes:
                                 model_path = os.path.join(root, name)
                             if PurePath(name).name == requirements_file:
                                 req_file_path = os.path.join(root, name)
+                        for directory in dirs:
+                            if directory == artifact_directory_name:
+                                dir_list = os.path.join(root, directory)
+                                for artifacts_file in os.listdir(dir_list):
+                                    if not artifacts_file == requirements_file:
+                                        artifacts_list.append(os.path.join(dir_list, artifacts_file))
+                                        if extra_files is None:
+                                            extra_files = True
                     if model_path is None:
                         raise RuntimeError(
                             "Model file does not have a valid suffix. Expected to be one of "
@@ -322,9 +335,16 @@ class TorchServePlugin(BaseDeploymentClient):
             )
         )
         if extra_files:
-            cmd = "{} --extra-files {}".format(cmd, extra_files)
+            extra_files_str = ""
+            if type(extra_files) == str:
+                extra_files_str += str(extra_files).replace('\'', "")
+                if len(artifacts_list) > 0:
+                    extra_files_str += ","
+            if len(artifacts_list) > 0:
+                extra_files_str += ",".join(artifacts_list)
+            cmd = "{cmd} --extra-files '{extra_files}'".format(cmd=cmd, extra_files=extra_files_str)
         if req_file_path:
-            cmd = "{} -r {}".format(cmd, req_file_path)
+            cmd = "{cmd} -r {path}".format(cmd=cmd, path=req_file_path)
 
         return_code = subprocess.Popen(cmd, shell=True).wait()
         if return_code != 0:
