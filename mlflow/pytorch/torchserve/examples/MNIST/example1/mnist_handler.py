@@ -3,10 +3,10 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-from torchserve.examples.MNIST.example1.mnist_model import Net
 import torch
 from torch.autograd import Variable
 from torchvision import transforms
+from mnist_model import Net
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ import os
 
 import numpy as np
 import torch
-from torchserve.examples.MNIST.example2.mnist_model import Net
+from mnist_model import Net
 from torch.autograd import Variable
 
 logger = logging.getLogger(__name__)
