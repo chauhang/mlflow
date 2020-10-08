@@ -5,12 +5,12 @@
 # pytorch-lightning (using pip install pytorch-lightning)
 #       and mlflow (using pip install mlflow).
 #
+import mlflow
 import pytorch_lightning as pl
 import torch
 from argparse import ArgumentParser
-#from mlflow.pytorch.pytorch_autolog import __MLflowPLCallback
-from pytorch_lightning.logging import MLFlowLogger
-from sklearn.metrics import accuracy_score
+from pytorch_autolog import autolog
+from pytorch_lightning.metrics.functional import accuracy
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
@@ -47,7 +47,7 @@ class LightningMNISTClassifier(pl.LightningModule):
         parser.add_argument(
             "--num-workers",
             type=int,
-            default=0,
+            default=1,
             metavar="N",
             help="number of workers (default: 0)",
         )
@@ -124,7 +124,7 @@ class LightningMNISTClassifier(pl.LightningModule):
         x, y = test_batch
         output = self.forward(x)
         a, y_hat = torch.max(output, dim=1)
-        test_acc = accuracy_score(y_hat.cpu(), y.cpu())
+        test_acc = accuracy(y_hat.cpu(), y.cpu())
         return {"test_acc": torch.tensor(test_acc)}
 
     def test_epoch_end(self, outputs):
@@ -214,11 +214,12 @@ class LightningMNISTClassifier(pl.LightningModule):
 
 
 if __name__ == "__main__":
-    from pytorch_autolog import autolog
-    autolog()
-    parser = ArgumentParser(description="PyTorch Lightning Mnist Example")
+    parser = ArgumentParser(description="PyTorch autolog Mnist Example")
 
     # Add trainer specific arguments
+    parser.add_argument(
+        "--tracking_uri", type=str, default="http://localhost:5000/", help="mlflow tracking uri"
+    )
     parser.add_argument(
         "--max_epochs", type=int, default=5, help="number of epochs to run (default: 5)"
     )
@@ -233,16 +234,12 @@ if __name__ == "__main__":
     )
     parser = LightningMNISTClassifier.add_model_specific_args(parent_parser=parser)
 
+    autolog(log_every_n_iter=2)
+
     args = parser.parse_args()
     dict_args = vars(args)
+    mlflow.set_tracking_uri(dict_args['tracking_uri'])
     model = LightningMNISTClassifier(**dict_args)
-    mlflow_logger = MLFlowLogger(
-        experiment_name="Default", tracking_uri="http://localhost:5000/"
-    )
-    trainer = pl.Trainer.from_argparse_args(
-        args,
-        logger=mlflow_logger,
-    )
+    trainer = pl.Trainer.from_argparse_args(args)
     trainer.fit(model)
     trainer.test()
-
