@@ -24,6 +24,10 @@ and it can be overridden by providing  command line argument `--tracking-uri htt
 This example primarily focuses on logging and using additional/supporting files during deployment. 
 `number_to_text.json` file present in this example has the output mappings. 
 
+The python package requirements are listed in `requirements.txt`.
+This example logs `requirements.txt` as an additional artifact. Torchserve plugin auto detects the
+requirments file and adds it as the `-r` argument in `torch-model-archiver` during the `create_deployment` process
+
 The mapping file is pushed into mlflow along with the model using `mlflow.pytorch` library. 
 
 Command: `python mnist_model.py --epochs 5`

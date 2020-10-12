@@ -224,7 +224,8 @@ def main():
         scheduler.step()
 
     if args.save_model:
-        mlflow.pytorch.log_model(model, "models", artifacts={"number_to_text.json" : "number_to_text.json"})
+        mlflow.pytorch.log_model(model, "models", artifacts={"number_to_text.json": "number_to_text.json",
+                                                             "requirements.txt": "requirements.txt"})
 
     if args.generate_sample_input:
         data = {"data": [os.path.join(os.getcwd(), "test_data/one.png")]}
