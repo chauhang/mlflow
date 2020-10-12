@@ -85,5 +85,5 @@ if __name__ == "__main__":
 
     trainer.fit(model, train_loader, val_loader)
     trainer.test(test_dataloaders=test_loader)
-    torch.save(trainer.model.state_dict(), "iris_gpu.pt")
+    torch.save(trainer.model, "iris_gpu.pt")
 #    torch.save(trainer.model.state_dict(), "iris_gpu_state_dict")
