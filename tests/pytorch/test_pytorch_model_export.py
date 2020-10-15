@@ -82,7 +82,6 @@ def train_model(model, data):
             optimizer.step()
 
 
-# @pytest.fixture(scope='module')
 @pytest.fixture
 def sequential_model(data, scripted_model):
     model = nn.Sequential(
@@ -176,7 +175,6 @@ def _predict(model, data):
     return predictions
 
 
-# @pytest.fixture(scope='module')
 @pytest.fixture
 def sequential_predicted(sequential_model, data, scripted_model):
     return _predict(sequential_model, data)
