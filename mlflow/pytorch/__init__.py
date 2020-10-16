@@ -15,8 +15,10 @@ import yaml
 import cloudpickle
 import numpy as np
 import pandas as pd
+import posixpath
 
 import mlflow
+import shutil
 import mlflow.pyfunc.utils as pyfunc_utils
 from mlflow import pyfunc
 from mlflow.exceptions import MlflowException
@@ -27,7 +29,7 @@ from mlflow.protos.databricks_pb2 import RESOURCE_DOES_NOT_EXIST
 from mlflow.pytorch import pickle_module as mlflow_pytorch_pickle_module
 from mlflow.tracking.artifact_utils import _download_artifact_from_uri
 from mlflow.utils.environment import _mlflow_conda_env
-from mlflow.utils.file_utils import _copy_file_or_tree
+from mlflow.utils.file_utils import _copy_file_or_tree, TempDir
 from mlflow.utils.model_utils import _get_flavor_configuration
 
 FLAVOR_NAME = "pytorch"
@@ -64,7 +66,8 @@ def get_default_conda_env():
 
 def log_model(pytorch_model, artifact_path, conda_env=None, code_paths=None,
               pickle_module=None, registered_model_name=None,
-              signature: ModelSignature = None, input_example: ModelInputExample = None, **kwargs):
+              signature: ModelSignature = None, input_example: ModelInputExample = None, requirements_file=None,
+              extra_files=None, **kwargs):
     """
     Log a PyTorch model as an MLflow artifact for the current run.
 
@@ -124,6 +127,25 @@ def log_model(pytorch_model, artifact_path, conda_env=None, code_paths=None,
                           serialized to json using the Pandas split-oriented format. Bytes are
                           base64-encoded.
 
+    :param requirements_file: A string containing the path to requirements file. Remote URIs
+                      are resolved to absolute filesystem paths.
+                      For example, consider the following ``requirements_file`` string::
+
+                      requirements_file = "s3://my-bucket/path/to/my_file"
+
+                      In this case, the ``"my_file"`` requirements file is downloaded from S3.
+
+                      If ``None``, no requirements file is added to the model.
+
+    :param extra_files: A list containing the paths to corresponding extra files. Remote URIs
+                      are resolved to absolute filesystem paths.
+                      For example, consider the following ``extra_files`` list::
+
+                      extra_files = ["s3://my-bucket/path/to/my_file1", "s3://my-bucket/path/to/my_file2"]
+
+                      In this case, the ``"my_file1 & my_file2"`` extra file is downloaded from S3.
+
+                      If ``None``, no extra files are added to the model.
 
     :param kwargs: kwargs to pass to ``torch.save`` method.
 
@@ -176,13 +198,14 @@ def log_model(pytorch_model, artifact_path, conda_env=None, code_paths=None,
     Model.log(artifact_path=artifact_path, flavor=mlflow.pytorch, pytorch_model=pytorch_model,
               conda_env=conda_env, code_paths=code_paths, pickle_module=pickle_module,
               registered_model_name=registered_model_name,
-              signature=signature, input_example=input_example, **kwargs)
+              signature=signature, input_example=input_example, requirements_file=requirements_file,
+              extra_files=extra_files, **kwargs)
 
 
 def save_model(pytorch_model, path, conda_env=None, mlflow_model=None, code_paths=None,
                pickle_module=None,
                signature: ModelSignature=None, input_example: ModelInputExample=None,
-               **kwargs):
+               requirements_file=None, extra_files=None, **kwargs):
     """
     Save a PyTorch model to a path on the local file system.
 
@@ -241,6 +264,26 @@ def save_model(pytorch_model, path, conda_env=None, mlflow_model=None, code_path
                           serialized to json using the Pandas split-oriented format. Bytes are
                           base64-encoded.
 
+    :param requirements_file: A string containing the path to requirements file. Remote URIs
+                      are resolved to absolute filesystem paths.
+                      For example, consider the following ``requirements_file`` string::
+
+                      requirements_file = "s3://my-bucket/path/to/my_file"
+
+                      In this case, the ``"my_file"`` requirements file is downloaded from S3.
+
+                      If ``None``, no requirements file is added to the model.
+
+    :param extra_files: A list containing the paths to corresponding extra files. Remote URIs
+                      are resolved to absolute filesystem paths.
+                      For example, consider the following ``extra_files`` list::
+
+                      extra_files = ["s3://my-bucket/path/to/my_file1", "s3://my-bucket/path/to/my_file2"]
+
+                      In this case, the ``"my_file1 & my_file2"`` extra file is downloaded from S3.
+
+                      If ``None``, no extra files are added to the model.
+
     :param kwargs: kwargs to pass to ``torch.save`` method.
 
     .. code-block:: python
@@ -297,6 +340,34 @@ def save_model(pytorch_model, path, conda_env=None, mlflow_model=None, code_path
         f.write(pickle_module.__name__)
     # Save pytorch model
     model_path = os.path.join(model_data_path, _SERIALIZED_TORCH_MODEL_FILE_NAME)
+
+    if requirements_file:
+        if not isinstance(requirements_file, str):
+            raise TypeError("Path to requirements file should be a string")
+
+        with TempDir() as tmp_requirements_dir:
+            saved_requirements_dir_subpath = "requirements"
+            _download_artifact_from_uri(
+                artifact_uri=requirements_file, output_path=tmp_requirements_dir.path()
+            )
+            shutil.move(
+                tmp_requirements_dir.path(), posixpath.join(path, saved_requirements_dir_subpath)
+            )
+
+    if extra_files and len(extra_files) > 0:
+        if not isinstance(extra_files, list):
+            raise TypeError("Extra files argument should be a list")
+
+        with TempDir() as tmp_extra_files_dir:
+            saved_extra_files_dir_subpath = "artifacts"
+            for extra_file in extra_files:
+                _download_artifact_from_uri(
+                    artifact_uri=extra_file, output_path=tmp_extra_files_dir.path()
+                )
+            shutil.move(
+                tmp_extra_files_dir.path(), posixpath.join(path, saved_extra_files_dir_subpath)
+            )
+
     torch.save(pytorch_model, model_path, pickle_module=pickle_module, **kwargs)
 
     conda_env_subpath = "conda.yaml"
