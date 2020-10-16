@@ -90,11 +90,15 @@ class TorchServePlugin(BaseDeploymentClient):
         if "extra_files" not in self.server_config:
             self.server_config["extra_files"] = None
 
+        if "requirements" not in self.server_config:
+            self.server_config["requirements"] = None
+
         mar_file_path = self.__generate_mar_file(
             model_name=name,
             version=str(version),
             model_file=self.server_config["model_file"],
             handler_file=self.server_config["handler_file"],
+            requirements=self.server_config["requirements"],
             extra_files=self.server_config["extra_files"],
             model_uri=model_uri
         )
@@ -102,7 +106,7 @@ class TorchServePlugin(BaseDeploymentClient):
         config_registration = {
             key: val
             for key, val in config.items()
-            if key.upper() not in ["VERSION", "MODEL_FILE", "HANDLER_FILE", "EXTRA_FILES"]
+            if key.upper() not in ["VERSION", "MODEL_FILE", "HANDLER_FILE", "EXTRA_FILES", "REQUIREMENTS"]
         }
 
         self.__register_model(
@@ -273,7 +277,7 @@ class TorchServePlugin(BaseDeploymentClient):
         return resp.text
 
     def __generate_mar_file(
-        self, model_name, version, model_file, handler_file, extra_files, model_uri
+        self, model_name, version, model_file, handler_file, requirements, extra_files, model_uri
     ):
 
         """
@@ -281,8 +285,9 @@ class TorchServePlugin(BaseDeploymentClient):
         """
         valid_file_suffixes = [".pt", ".pth"]
         requirements_file = "requirements.txt"
-        artifact_directory_name = "artifacts"
-        artifacts_list = []
+        requirements_directory_name = "requirements"
+        extra_files_directory_name = "extra_files"
+        extra_files_list = []
         req_file_path = None
 
         if not os.path.isfile(model_uri):
@@ -302,16 +307,21 @@ class TorchServePlugin(BaseDeploymentClient):
                         for name in files:
                             if Path(name).suffix in valid_file_suffixes:
                                 model_path = os.path.join(root, name)
-                            if PurePath(name).name == requirements_file:
-                                req_file_path = os.path.join(root, name)
+
                         for directory in dirs:
-                            if directory == artifact_directory_name:
+                            if directory == extra_files_directory_name:
                                 dir_list = os.path.join(root, directory)
-                                for artifacts_file in os.listdir(dir_list):
-                                    if not artifacts_file == requirements_file:
-                                        artifacts_list.append(os.path.join(dir_list, artifacts_file))
-                                        if extra_files is None:
-                                            extra_files = True
+                                for extra_file in os.listdir(dir_list):
+                                    extra_files_list.append(os.path.join(dir_list, extra_file))
+                                    if extra_files is None:
+                                        extra_files = True
+
+                            if directory == requirements_directory_name:
+                                dir_list = os.path.join(root, directory)
+                                for requirements_file in os.listdir(dir_list):
+                                    req_file_path = os.path.join(dir_list, requirements_file)
+                                    if requirements is None:
+                                        requirements = True
                     if model_path is None:
                         raise RuntimeError(
                             "Model file does not have a valid suffix. Expected to be one of "
@@ -338,11 +348,12 @@ class TorchServePlugin(BaseDeploymentClient):
             extra_files_str = ""
             if type(extra_files) == str:
                 extra_files_str += str(extra_files).replace('\'', "")
-                if len(artifacts_list) > 0:
+                if len(extra_files_list) > 0:
                     extra_files_str += ","
-            if len(artifacts_list) > 0:
-                extra_files_str += ",".join(artifacts_list)
+            if len(extra_files_list) > 0:
+                extra_files_str += ",".join(extra_files_list)
             cmd = "{cmd} --extra-files '{extra_files}'".format(cmd=cmd, extra_files=extra_files_str)
+
         if req_file_path:
             cmd = "{cmd} -r {path}".format(cmd=cmd, path=req_file_path)
 

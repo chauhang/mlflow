@@ -139,7 +139,7 @@ def main():
     parser.add_argument(
         "--epochs",
         type=int,
-        default=2,
+        default=5,
         metavar="N",
         help="number of epochs to train (default: 14)",
     )
@@ -224,8 +224,8 @@ def main():
         scheduler.step()
 
     if args.save_model:
-        mlflow.pytorch.log_model(model, "models", artifacts={"number_to_text.json": "number_to_text.json",
-                                                             "requirements.txt": "requirements.txt"})
+        mlflow.pytorch.log_model(model, artifact_path="model", requirements_file="requirements.txt",
+                                 extra_files=["number_to_text.json"])
 
     if args.generate_sample_input:
         data = {"data": [os.path.join(os.getcwd(), "test_data/one.png")]}
