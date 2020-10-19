@@ -812,9 +812,8 @@ def test_sagemaker_docker_model_scoring_with_sequential_model_and_default_conda_
     deployed_model_preds = pd.DataFrame(json.loads(scoring_response.content))
 
     np.testing.assert_array_almost_equal(
-        deployed_model_preds.values[:, 0],
-        sequential_predicted,
-        decimal=4)
+        deployed_model_preds.values[:, 0], sequential_predicted, decimal=4
+    )
 
 
 @pytest.fixture
@@ -834,7 +833,7 @@ def test_requirement_file_log_model(create_requirement_file, sequential_model):
             pytorch_model=sequential_model,
             artifact_path="models",
             conda_env=None,
-            requirements_file=requirement_file_path.strpath
+            requirements_file=requirement_file_path.strpath,
         )
 
         model_uri = "runs:/{run_id}/{model_path}".format(
@@ -879,7 +878,9 @@ def test_log_model_invalid_requirement_file_path(sequential_model):
 
 
 def test_log_model_invalid_requirement_file_type(sequential_model):
-    with mlflow.start_run(), pytest.raises(TypeError, match="Path to requirements file should be a string"):
+    with mlflow.start_run(), pytest.raises(
+        TypeError, match="Path to requirements file should be a string"
+    ):
         mlflow.pytorch.log_model(
             pytorch_model=sequential_model,
             artifact_path="models",
@@ -904,7 +905,7 @@ def test_extra_files_log_model(create_extra_files, sequential_model):
             pytorch_model=sequential_model,
             artifact_path="models",
             conda_env=None,
-            extra_files=[extra_file_path.strpath]
+            extra_files=[extra_file_path.strpath],
         )
 
         model_uri = "runs:/{run_id}/{model_path}".format(
@@ -925,9 +926,7 @@ def test_extra_files_save_model(create_extra_files, sequential_model):
     with mlflow.start_run(), TempDir(remove_on_exit=True) as tmp:
         model_path = os.path.join(tmp.path(), "models")
         mlflow.pytorch.save_model(
-            pytorch_model=sequential_model,
-            path=model_path,
-            extra_files=[extra_file_path.strpath]
+            pytorch_model=sequential_model, path=model_path, extra_files=[extra_file_path.strpath]
         )
         assert os.path.isdir(os.path.join(model_path, "artifacts"))
         extra_file = os.path.join(model_path, "artifacts", "extra1.txt")
@@ -948,7 +947,9 @@ def test_log_model_invalid_extra_file_path(sequential_model):
 
 
 def test_log_model_invalid_extra_file_type(sequential_model):
-    with mlflow.start_run(), pytest.raises(TypeError, match="Extra files argument should be a list"):
+    with mlflow.start_run(), pytest.raises(
+        TypeError, match="Extra files argument should be a list"
+    ):
         mlflow.pytorch.log_model(
             pytorch_model=sequential_model,
             artifact_path="models",
