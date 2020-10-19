@@ -15,7 +15,7 @@ from argparse import ArgumentParser
 from mlflow.pytorch.pytorch_autolog import autolog
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.callbacks import LearningRateLogger
+from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.metrics.functional import accuracy
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, random_split
@@ -55,9 +55,9 @@ class LightningMNISTClassifier(pl.LightningModule):
         parser.add_argument(
             "--num-workers",
             type=int,
-            default=1,
+            default=3,
             metavar="N",
-            help="number of workers (default: 0)",
+            help="number of workers (default: 3)",
         )
         parser.add_argument(
             "--lr", type=float, default=1e-3, metavar="LR", help="learning rate (default: 1e-3)",
@@ -136,7 +136,7 @@ class LightningMNISTClassifier(pl.LightningModule):
         :return: output - average valid loss
         """
         avg_loss = torch.stack([x["val_step_loss"] for x in outputs]).mean()
-        return {"val_loss": avg_loss}
+        self.log("val_loss", avg_loss)
 
     def test_step(self, test_batch, batch_idx):
         """
@@ -162,7 +162,7 @@ class LightningMNISTClassifier(pl.LightningModule):
         :return: output - average test loss
         """
         avg_test_acc = torch.stack([x["test_acc"] for x in outputs]).mean()
-        return {"avg_test_acc": avg_test_acc}
+        self.log("avg_test_acc", avg_test_acc)
 
     def prepare_data(self):
         """
@@ -209,7 +209,8 @@ class LightningMNISTClassifier(pl.LightningModule):
         self.scheduler = {
             "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
                 self.optimizer, mode="min", factor=0.2, patience=2, min_lr=1e-6, verbose=True,
-            )
+            ),
+            "monitor": "val_loss",
         }
         return [self.optimizer], [self.scheduler]
 
@@ -241,42 +242,61 @@ if __name__ == "__main__":
     # Add trainer specific arguments
 
     parser.add_argument(
-        "--tracking_uri", type=str, default="http://localhost:5000/", help="mlflow tracking uri"
+        "--tracking-uri", type=str, default="http://localhost:5000/", help="mlflow tracking uri"
     )
     parser.add_argument(
-        "--max_epochs", type=int, default=20, help="number of epochs to run (default: 20)"
+        "--max-epochs", type=int, default=20, help="number of epochs to run (default: 20)"
     )
     parser.add_argument(
         "--gpus", type=int, default=0, help="Number of gpus - by default runs on CPU"
     )
     parser.add_argument(
-        "--distributed_backend",
-        type=str,
-        default=None,
-        help="Distributed Backend - (default: None)",
+        "--accelerator", type=str, default=None, help="Accelerator - (default: None)",
     )
+
+    # Early stopping parameters
+
+    parser.add_argument(
+        "--es-monitor", type=str, default="val_loss", help="Early stopping monitor parameter"
+    )
+
+    parser.add_argument("--es-mode", type=str, default="min", help="Early stopping mode parameter")
+
+    parser.add_argument(
+        "--es-verbose", type=bool, default=True, help="Early stopping verbose parameter"
+    )
+
+    parser.add_argument(
+        "--es-patience", type=int, default=3, help="Early stopping patience parameter"
+    )
+
     parser = LightningMNISTClassifier.add_model_specific_args(parent_parser=parser)
 
     autolog()
 
     args = parser.parse_args()
     dict_args = vars(args)
+
     mlflow.set_tracking_uri(dict_args["tracking_uri"])
 
     model = LightningMNISTClassifier(**dict_args)
-    early_stopping = EarlyStopping(monitor="val_loss", mode="min", verbose=True)
+    early_stopping = EarlyStopping(
+        monitor=dict_args["es_monitor"],
+        mode=dict_args["es_mode"],
+        verbose=dict_args["es_verbose"],
+        patience=dict_args["es_patience"],
+    )
 
     checkpoint_callback = ModelCheckpoint(
         filepath=os.getcwd(), save_top_k=1, verbose=True, monitor="val_loss", mode="min", prefix="",
     )
-    lr_logger = LearningRateLogger()
+    lr_logger = LearningRateMonitor()
 
     trainer = pl.Trainer.from_argparse_args(
         args,
-        callbacks=[lr_logger],
-        early_stop_callback=early_stopping,
+        callbacks=[lr_logger, early_stopping],
         checkpoint_callback=checkpoint_callback,
-        train_percent_check=0.1,
+        limit_train_batches=0.1,
     )
     trainer.fit(model)
     trainer.test()
