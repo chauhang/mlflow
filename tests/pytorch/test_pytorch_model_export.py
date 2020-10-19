@@ -86,11 +86,7 @@ def train_model(model, data):
 
 @pytest.fixture
 def sequential_model(data, scripted_model):
-    model = nn.Sequential(
-        nn.Linear(4, 3),
-        nn.ReLU(),
-        nn.Linear(3, 1),
-    )
+    model = nn.Sequential(nn.Linear(4, 3), nn.ReLU(), nn.Linear(3, 1),)
     if scripted_model:
         model = torch.jit.script(model)
 
