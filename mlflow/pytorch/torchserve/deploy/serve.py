@@ -55,10 +55,10 @@ class TorchServePlugin(BaseDeploymentClient):
         Validate the mandatory arguments is present if not raise exception
         """
 
-        if not self.server_config["model_file"]:
+        if "model_file" not in self.server_config:
             raise Exception("Config Variable MODEL_FILE - missing")
 
-        if not self.server_config["handler_file"]:
+        if "handler_file" not in self.server_config:
             raise Exception("Config Variable HANDLER_FILE - missing")
 
     def create_deployment(self, name, model_uri, flavor=None, config=None):
