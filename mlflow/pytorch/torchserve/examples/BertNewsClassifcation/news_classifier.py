@@ -21,7 +21,7 @@ import argparse
 import os
 from tqdm import tqdm
 import requests
-from torchtext.utils import download_from_url, extract_archive, unicode_csv_reader
+from torchtext.utils import download_from_url, extract_archive
 from torchtext.datasets.text_classification import URLS
 import mlflow.pytorch
 
@@ -32,6 +32,7 @@ class AGNewsDataset(Dataset):
     """
     Constructs the encoding with the dataset
     """
+
     def __init__(self, reviews, targets, tokenizer, max_len):
         self.reviews = reviews
         self.targets = targets
@@ -131,27 +132,25 @@ class NewsClassifier(nn.Module):
         """
         Creates train, valid and test dataloaders from the csv data
         """
-        dataset_tar = download_from_url(URLS['AG_NEWS'], root='.data')
+        dataset_tar = download_from_url(URLS["AG_NEWS"], root=".data")
         extracted_files = extract_archive(dataset_tar)
 
         for fname in extracted_files:
-            if fname.endswith('train.csv'):
+            if fname.endswith("train.csv"):
                 train_csv_path = fname
-        
-        self.df = pd.read_csv(
-            train_csv_path
-        )
 
-        self.df.columns = ['label', 'title', 'description']
-        self.df.sample(frac= 1)
-        self.df = self.df.iloc[:self.NUM_SAMPLES_COUNT]
+        self.df = pd.read_csv(train_csv_path)
+
+        self.df.columns = ["label", "title", "description"]
+        self.df.sample(frac=1)
+        self.df = self.df.iloc[: self.NUM_SAMPLES_COUNT]
 
         self.df["label"] = self.df.label.apply(self.process_label)
 
         if not os.path.isfile(self.VOCAB_FILE):
-            filePointer = requests.get(self.VOCAB_FILE_URL, allow_redirects=True)           
+            filePointer = requests.get(self.VOCAB_FILE_URL, allow_redirects=True)
             if filePointer.ok:
-                with open(self.VOCAB_FILE, 'wb') as f:
+                with open(self.VOCAB_FILE, "wb") as f:
                     f.write(filePointer.content)
             else:
                 raise RuntimeError("Error in fetching the vocab file")
@@ -352,23 +351,20 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--save-model",
-        action="store_true",
-        default=True,
-        help="For Saving the current Model",
+        "--save-model", action="store_true", default=True, help="For Saving the current Model",
     )
 
     parser.add_argument(
         "--vocab-file",
         default="https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-cased-vocab.txt",
-        help="Custom vocab file"
+        help="Custom vocab file",
     )
 
     args = parser.parse_args()
     print("Tracking URI: ", args.tracking_uri)
     mlflow.set_tracking_uri(args.tracking_uri)
     mlflow.start_run()
-    
+
     model = NewsClassifier(args)
     model = model.to(model.device)
     model.prepare_data()
@@ -388,9 +384,13 @@ if __name__ == "__main__":
     print(classification_report(y_test, y_pred, target_names=class_names))
 
     print("\n\n\n SAVING MODEL")
-    
+
     if args.save_model:
-        mlflow.pytorch.log_model(model, artifact_path="model", requirements_file="requirements.txt",
-                                 extra_files=["class_mapping.json", "bert_base_cased_vocab.txt"])
+        mlflow.pytorch.log_model(
+            model,
+            artifact_path="model",
+            requirements_file="requirements.txt",
+            extra_files=["class_mapping.json", "bert_base_cased_vocab.txt"],
+        )
 
     mlflow.end_run()

@@ -31,9 +31,7 @@ class NewsClassifierHandler(object):
 
         properties = ctx.system_properties
         self.device = torch.device(
-            "cuda:" + str(properties.get("gpu_id"))
-            if torch.cuda.is_available()
-            else "cpu"
+            "cuda:" + str(properties.get("gpu_id")) if torch.cuda.is_available() else "cpu"
         )
         model_dir = properties.get("model_dir")
 
@@ -72,7 +70,7 @@ class NewsClassifierHandler(object):
 
         text = text.decode("utf-8")
 
-        tokenizer = BertTokenizer(self.VOCAB_FILE) #.from_pretrained("bert-base-cased")
+        tokenizer = BertTokenizer(self.VOCAB_FILE)  # .from_pretrained("bert-base-cased")
         encoding = tokenizer.encode_plus(
             text,
             max_length=32,
