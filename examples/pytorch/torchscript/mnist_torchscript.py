@@ -1,250 +1,186 @@
-import mlflow
-import mlflow.pytorch
-import os
-import pytorch_lightning as pl
+#!/usr/bin/env python
+# coding: utf-8
+# pylint: disable=W0223
+
+from __future__ import print_function
+
+import argparse
+
 import torch
-from argparse import ArgumentParser
-from pytorch_lightning.metrics.functional import accuracy
-from torch.nn import functional as F
-from torch.utils.data import DataLoader, random_split
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
 
-# pylint: disable=W0221
-# pylint: disable=W0613
+import mlflow
+import mlflow.pytorch
 
 
-class LightningMNISTClassifier(pl.LightningModule):
-    def __init__(self, **kwargs):
-        """
-        Initializes the network
-        """
-        super(LightningMNISTClassifier, self).__init__()
-
-        # mnist images are (1, 28, 28) (channels, width, height)
-        self.optimizer = None
-        self.scheduler = None
-        self.layer_1 = torch.nn.Linear(28 * 28, 128)
-        self.layer_2 = torch.nn.Linear(128, 256)
-        self.layer_3 = torch.nn.Linear(256, 10)
-        self.args = kwargs
-
-        # transforms for images
-        self.transform = transforms.Compose(
-            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-        )
-
-    @staticmethod
-    def add_model_specific_args(parent_parser):
-        parser = ArgumentParser(parents=[parent_parser], add_help=False)
-        parser.add_argument(
-            "--batch-size",
-            type=int,
-            default=64,
-            metavar="N",
-            help="input batch size for training (default: 64)",
-        )
-        parser.add_argument(
-            "--num-workers",
-            type=int,
-            default=1,
-            metavar="N",
-            help="number of workers (default: 0)",
-        )
-        parser.add_argument(
-            "--lr", type=float, default=1e-3, metavar="LR", help="learning rate (default: 1e-3)",
-        )
-        return parser
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, 3, 1)
+        self.conv2 = nn.Conv2d(32, 64, 3, 1)
+        self.dropout1 = nn.Dropout(0.25)
+        self.dropout2 = nn.Dropout(0.5)
+        self.fc1 = nn.Linear(9216, 128)
+        self.fc2 = nn.Linear(128, 10)
 
     def forward(self, x):
-        """
-        :param x: Input data
-        :return: output - mnist digit label for the input image
-        """
-        batch_size = x.size()[0]
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.conv2(x)
+        x = F.relu(x)
+        x = F.max_pool2d(x, 2)
+        x = self.dropout1(x)
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.dropout2(x)
+        x = self.fc2(x)
+        output = F.log_softmax(x, dim=1)
+        return output
 
-        # (b, 1, 28, 28) -> (b, 1*28*28)
-        x = x.view(batch_size, -1)
 
-        # layer 1 (b, 1*28*28) -> (b, 128)
-        x = self.layer_1(x)
-        x = torch.relu(x)
-
-        # layer 2 (b, 128) -> (b, 256)
-        x = self.layer_2(x)
-        x = torch.relu(x)
-
-        # layer 3 (b, 256) -> (b, 10)
-        x = self.layer_3(x)
-
-        # probability distribution over labels
-        x = torch.log_softmax(x, dim=1)
-
-        return x
-
-    def cross_entropy_loss(self, logits, labels):
-        """
-        Initializes the loss function
-        :return: output - Initialized cross entropy loss function
-        """
-        return F.nll_loss(logits, labels)
-
-    def training_step(self, train_batch, batch_idx):
-        """
-        Training the data as batches and returns training loss on each batch
-        :param train_batch: Batch data
-        :param batch_idx: Batch indices
-        :return: output - Training loss
-        """
-        x, y = train_batch
-        logits = self.forward(x)
-        loss = self.cross_entropy_loss(logits, y)
-        return {"loss": loss}
-
-    def validation_step(self, val_batch, batch_idx):
-        """
-        Performs validation of data in batches
-        :param val_batch: Batch data
-        :param batch_idx: Batch indices
-        :return: output - valid step loss
-        """
-        x, y = val_batch
-        logits = self.forward(x)
-        loss = self.cross_entropy_loss(logits, y)
-        return {"val_loss": loss}
-
-    def validation_epoch_end(self, outputs):
-        """
-        Computes average validation accuracy
-        :param outputs: outputs after every epoch end
-        :return: output - average valid loss
-        """
-        avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
-        tensorboard_logs = {"val_loss": avg_loss}
-        return {"avg_val_loss": avg_loss, "log": tensorboard_logs}
-
-    def test_step(self, test_batch, batch_idx):
-        """
-        Performs test and computes the accuracy of the model
-        :param test_batch: Batch data
-        :param batch_idx: Batch indices
-        :return: output - Testing accuracy
-        """
-        x, y = test_batch
-        output = self.forward(x)
-        _, y_hat = torch.max(output, dim=1)
-        test_acc = accuracy(y_hat.cpu(), y.cpu())
-        return {"test_acc": test_acc}
-
-    def test_epoch_end(self, outputs):
-        """
-        Computes average test accuracy score
-        :param outputs: outputs after every epoch end
-        :return: output - average test loss
-        """
-        avg_test_acc = torch.stack([x["test_acc"] for x in outputs]).mean()
-        return {"avg_test_acc": avg_test_acc}
-
-    def prepare_data(self):
-        """
-        Prepares the data for training and prediction
-        """
-        return {}
-
-    def train_dataloader(self):
-        """
-        :return: output - Train data loader for the given input
-        """
-        mnist_train = datasets.MNIST("dataset", download=True, train=True, transform=self.transform)
-        return DataLoader(
-            mnist_train, batch_size=self.args["batch_size"], num_workers=self.args["num_workers"],
-        )
-
-    def val_dataloader(self):
-        """
-        :return: output - Validation data loader for the given input
-        """
-        mnist_train = datasets.MNIST("dataset", download=True, train=True, transform=self.transform)
-        mnist_train, mnist_val = random_split(mnist_train, [55000, 5000])
-
-        return DataLoader(
-            mnist_val, batch_size=self.args["batch_size"], num_workers=self.args["num_workers"],
-        )
-
-    def test_dataloader(self):
-        """
-        :return: output - Test data loader for the given input
-        """
-        mnist_test = datasets.MNIST("dataset", download=True, train=False, transform=self.transform)
-        return DataLoader(
-            mnist_test, batch_size=self.args["batch_size"], num_workers=self.args["num_workers"],
-        )
-
-    def configure_optimizers(self):
-        """
-        Initializes the optimizer and learning rate scheduler
-        :return: output - Initialized optimizer and scheduler
-        """
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.args["lr"])
-        self.scheduler = {
-            "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
-                self.optimizer, mode="min", factor=0.2, patience=2, min_lr=1e-6, verbose=True,
+def train(args, model, device, train_loader, optimizer, epoch):
+    model.train()
+    for batch_idx, (data, target) in enumerate(train_loader):
+        data, target = data.to(device), target.to(device)
+        optimizer.zero_grad()
+        output = model(data)
+        loss = F.nll_loss(output, target)
+        loss.backward()
+        optimizer.step()
+        if batch_idx % args.log_interval == 0:
+            print(
+                "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
+                    epoch,
+                    batch_idx * len(data),
+                    len(train_loader.dataset),
+                    100.0 * batch_idx / len(train_loader),
+                    loss.item(),
+                )
             )
-        }
-        return [self.optimizer], [self.scheduler]
+            if args.dry_run:
+                break
 
-    def optimizer_step(
-        self,
-        epoch,
-        batch_idx,
-        optimizer,
-        optimizer_idx,
-        second_order_closure=None,
-        on_tpu=False,
-        using_lbfgs=False,
-        using_native_amp=False,
-    ):
-        """
-        Training step function which runs for the given number of epochs
-        :param epoch: Number of epochs to train
-        :param batch_idx: batch indices
-        :param optimizer: Optimizer to be used in training step
-        """
-        self.optimizer.step()
-        self.optimizer.zero_grad()
+
+def test(model, device, test_loader):
+    model.eval()
+    test_loss = 0
+    correct = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+            test_loss += F.nll_loss(output, target, reduction="sum").item()  # sum up batch loss
+            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            correct += pred.eq(target.view_as(pred)).sum().item()
+
+    test_loss /= len(test_loader.dataset)
+
+    print(
+        "\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
+            test_loss,
+            correct,
+            len(test_loader.dataset),
+            100.0 * correct / len(test_loader.dataset),
+        )
+    )
+
+
+def main():
+    # Training settings
+    parser = argparse.ArgumentParser(description="PyTorch MNIST Example")
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=64,
+        metavar="N",
+        help="input batch size for training (default: 64)",
+    )
+    parser.add_argument(
+        "--test-batch-size",
+        type=int,
+        default=1000,
+        metavar="N",
+        help="input batch size for testing (default: 1000)",
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=14,
+        metavar="N",
+        help="number of epochs to train (default: 14)",
+    )
+    parser.add_argument(
+        "--lr", type=float, default=1.0, metavar="LR", help="learning rate (default: 1.0)",
+    )
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        default=0.7,
+        metavar="M",
+        help="Learning rate step gamma (default: 0.7)",
+    )
+    parser.add_argument(
+        "--no-cuda", action="store_true", default=False, help="disables CUDA training"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", default=False, help="quickly check a single pass",
+    )
+    parser.add_argument("--seed", type=int, default=1, metavar="S", help="random seed (default: 1)")
+    parser.add_argument(
+        "--log-interval",
+        type=int,
+        default=10,
+        metavar="N",
+        help="how many batches to wait before logging training status",
+    )
+    parser.add_argument(
+        "--save-model", action="store_true", default=False, help="For Saving the current model",
+    )
+
+    parser.add_argument(
+        "--tracking-uri", default="http://localhost:5000", help="Mlflow Tracking URI",
+    )
+    args = parser.parse_args()
+    use_cuda = not args.no_cuda and torch.cuda.is_available()
+
+    torch.manual_seed(args.seed)
+
+    device = torch.device("cuda" if use_cuda else "cpu")
+
+    train_kwargs = {"batch_size": args.batch_size}
+    test_kwargs = {"batch_size": args.test_batch_size}
+    if use_cuda:
+        cuda_kwargs = {"num_workers": 1, "pin_memory": True, "shuffle": True}
+        train_kwargs.update(cuda_kwargs)
+        test_kwargs.update(cuda_kwargs)
+
+    transform = transforms.Compose(
+        [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+    )
+    dataset1 = datasets.MNIST("../data", train=True, download=True, transform=transform)
+    dataset2 = datasets.MNIST("../data", train=False, transform=transform)
+    train_loader = torch.utils.data.DataLoader(dataset1, **train_kwargs)
+    test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
+
+    model = Net().to(device)
+    scripted_model = torch.jit.script(model)  # scripting the model
+    optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+
+    scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
+    for epoch in range(1, args.epochs + 1):
+        train(args, scripted_model, device, train_loader, optimizer, epoch)
+        test(scripted_model, device, test_loader)
+        scheduler.step()
+    mlflow.tracking.set_tracking_uri(args.tracking_uri)
+    mlflow.pytorch.log_model(model, "model")  # logging scripted model
+    uri_path = mlflow.get_artifact_uri()
+    mlflow.pytorch.load_model(uri_path + "/model")  # loading scripted model
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="TorchScripted model example")
-
-    # Add trainer specific arguments
-    parser.add_argument(
-        "--tracking-uri", type=str, default="http://localhost:5000/", help="mlflow tracking uri"
-    )
-    parser.add_argument(
-        "--max-epochs", type=int, default=5, help="number of epochs to run (default: 5)"
-    )
-    parser.add_argument(
-        "--gpus", type=int, default=0, help="Number of gpus - by default runs on CPU"
-    )
-    parser.add_argument(
-        "--distributed-backend",
-        type=str,
-        default=None,
-        help="Distributed Backend - (default: None)",
-    )
-    parser = LightningMNISTClassifier.add_model_specific_args(parent_parser=parser)
-
-    args = parser.parse_args()
-    dict_args = vars(args)
-    mlflow.set_tracking_uri(dict_args["tracking_uri"])
-    model = LightningMNISTClassifier(**dict_args)
-    scripted_model = torch.jit.script(model)
-    mlflow.start_run()
-    mlflow.pytorch.log_model(scripted_model, "scripted_model")
-    uri_path = mlflow.get_artifact_uri()
-    scripted_loaded_model = mlflow.pytorch.load_model(os.path.join(uri_path, "scripted_model"))
-    mlflow.end_run()
-
-    trainer = pl.Trainer.from_argparse_args(args)
-    trainer.fit(model)
-    trainer.test()
+    main()
