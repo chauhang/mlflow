@@ -1,6 +1,6 @@
 import logging
 import os
-
+import json
 import numpy as np
 import torch
 from transformers import BertTokenizer
@@ -8,10 +8,10 @@ from transformers import BertTokenizer
 logger = logging.getLogger(__name__)
 
 
-class BERTSentimentHandler(object):
+class NewsClassifierHandler(object):
     """
-    BERTSentimentHandler class. This handler takes a review / sentence
-    and returns the sentiment either positive / neutral / negative
+    NewsClassifierHandler class. This handler takes a review / sentence
+    and returns the label as either world / sports / business /sci-tech
     """
 
     def __init__(self):
@@ -19,6 +19,8 @@ class BERTSentimentHandler(object):
         self.mapping = None
         self.device = None
         self.initialized = False
+        self.class_mapping_file = None
+        self.VOCAB_FILE = None
 
     def initialize(self, ctx):
         """
@@ -36,17 +38,19 @@ class BERTSentimentHandler(object):
         model_dir = properties.get("model_dir")
 
         # Read model serialize/pt file
-        model_pt_path = os.path.join(model_dir, "bert_pytorch.pt")
+        model_pt_path = os.path.join(model_dir, "model.pth")
         # Read model definition file
-        model_def_path = os.path.join(model_dir, "bert_sentiment_analysis.py")
+        model_def_path = os.path.join(model_dir, "news_classifier.py")
         if not os.path.isfile(model_def_path):
             raise RuntimeError("Missing the model definition file")
 
-        from bert_sentiment_analysis import SentimentClassifier
+        self.VOCAB_FILE = os.path.join(model_dir, "bert_base_cased_vocab.txt")
+        if not os.path.isfile(self.VOCAB_FILE):
+            raise RuntimeError("Missing the vocab file")
 
-        state_dict = torch.load(model_pt_path, map_location=self.device)
-        self.model = SentimentClassifier()
-        self.model.load_state_dict(state_dict)
+        self.class_mapping_file = os.path.join(model_dir, "class_mapping.json")
+
+        self.model = torch.load(model_pt_path, map_location=self.device)
         self.model.to(self.device)
         self.model.eval()
 
@@ -68,7 +72,7 @@ class BERTSentimentHandler(object):
 
         text = text.decode("utf-8")
 
-        tokenizer = BertTokenizer.from_pretrained("bert-base-cased")
+        tokenizer = BertTokenizer(self.VOCAB_FILE) #.from_pretrained("bert-base-cased")
         encoding = tokenizer.encode_plus(
             text,
             max_length=32,
@@ -106,10 +110,16 @@ class BERTSentimentHandler(object):
 
         :return: output - Output after post processing
         """
+        if self.class_mapping_file:
+            with open(self.class_mapping_file) as json_file:
+                data = json.load(json_file)
+            inference_output = json.dumps(data[str(inference_output[0])])
+            return [inference_output]
+
         return inference_output
 
 
-_service = BERTSentimentHandler()
+_service = NewsClassifierHandler()
 
 
 def handle(data, context):

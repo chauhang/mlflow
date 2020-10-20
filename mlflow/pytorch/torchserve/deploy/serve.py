@@ -286,7 +286,7 @@ class TorchServePlugin(BaseDeploymentClient):
         valid_file_suffixes = [".pt", ".pth"]
         requirements_file = "requirements.txt"
         requirements_directory_name = "requirements"
-        extra_files_directory_name = "extra_files"
+        extra_files_directory_name = "artifacts"
         extra_files_list = []
         req_file_path = None
 

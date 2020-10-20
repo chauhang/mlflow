@@ -1,3 +1,6 @@
+# pylint: disable=W0221
+# pylint: disable=W0613
+# pylint: disable=E1102
 # pylint: disable=W0223
 from collections import defaultdict
 import numpy as np
@@ -14,12 +17,18 @@ from transformers import (
     AdamW,
     get_linear_schedule_with_warmup,
 )
+import argparse
+import os
 from tqdm import tqdm
+import requests
+from torchtext.utils import download_from_url, extract_archive, unicode_csv_reader
+from torchtext.datasets.text_classification import URLS
+import mlflow.pytorch
 
-class_names = ["negative", "neutral", "positive"]
+class_names = ["World", "Sports", "Business", "Sci/Tech"]
 
 
-class GPReviewDataset(Dataset):
+class AGNewsDataset(Dataset):
     """
     Constructs the encoding with the dataset
     """
@@ -51,16 +60,16 @@ class GPReviewDataset(Dataset):
             "review_text": review,
             "input_ids": encoding["input_ids"].flatten(),
             "attention_mask": encoding["attention_mask"].flatten(),
-            "targets": torch.Tensor(target, dtype=torch.long),
+            "targets": torch.tensor(target, dtype=torch.long),
         }
 
 
-class SentimentClassifier(nn.Module):
-    def __init__(self):
-        super(SentimentClassifier, self).__init__()
+class NewsClassifier(nn.Module):
+    def __init__(self, args):
+        super(NewsClassifier, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.PRE_TRAINED_MODEL_NAME = "bert-base-cased"
-        self.EPOCHS = 5
+        self.EPOCHS = args.epochs
         self.df = None
         self.tokenizer = None
         self.df_train = None
@@ -73,9 +82,12 @@ class SentimentClassifier(nn.Module):
         self.total_steps = None
         self.scheduler = None
         self.loss_fn = None
-        self.BATCH_SIZE = 32
+        self.BATCH_SIZE = 16
         self.MAX_LEN = 160
+        self.NUM_SAMPLES_COUNT = args.num_samples
         n_classes = len(class_names)
+        self.VOCAB_FILE_URL = args.vocab_file
+        self.VOCAB_FILE = "bert_base_cased_vocab.txt"
 
         self.bert = BertModel.from_pretrained(self.PRE_TRAINED_MODEL_NAME)
         self.drop = nn.Dropout(p=0.3)
@@ -86,21 +98,16 @@ class SentimentClassifier(nn.Module):
         :param input_ids: Input sentences from the batch
         :param attention_mask: Attention mask returned by the encoder
 
-        :return: output - sentiment for the input text
+        :return: output - label for the input text
         """
         _, pooled_output = self.bert(input_ids=input_ids, attention_mask=attention_mask)
         output = self.drop(pooled_output)
         return self.out(output)
 
     @staticmethod
-    def to_sentiment(rating):
+    def process_label(rating):
         rating = int(rating)
-        if rating <= 2:
-            return 0
-        elif rating == 3:
-            return 1
-        else:
-            return 2
+        return rating - 1
 
     def create_data_loader(self, df, tokenizer, max_len, batch_size):
         """
@@ -111,9 +118,9 @@ class SentimentClassifier(nn.Module):
 
         :return: output - Corresponding data loader for the given input
         """
-        ds = GPReviewDataset(
-            reviews=df.content.to_numpy(),
-            targets=df.sentiment.to_numpy(),
+        ds = AGNewsDataset(
+            reviews=df.description.to_numpy(),
+            targets=df.label.to_numpy(),
             tokenizer=tokenizer,
             max_len=max_len,
         )
@@ -124,11 +131,32 @@ class SentimentClassifier(nn.Module):
         """
         Creates train, valid and test dataloaders from the csv data
         """
+        dataset_tar = download_from_url(URLS['AG_NEWS'], root='.data')
+        extracted_files = extract_archive(dataset_tar)
+
+        for fname in extracted_files:
+            if fname.endswith('train.csv'):
+                train_csv_path = fname
+        
         self.df = pd.read_csv(
-            "https://drive.google.com/uc?id=1zdmewp7ayS4js4VtrJEHzAheSW-5NBZv"
+            train_csv_path
         )
-        self.df["sentiment"] = self.df.score.apply(self.to_sentiment)
-        self.tokenizer = BertTokenizer.from_pretrained(self.PRE_TRAINED_MODEL_NAME)
+
+        self.df.columns = ['label', 'title', 'description']
+        self.df.sample(frac= 1)
+        self.df = self.df.iloc[:self.NUM_SAMPLES_COUNT]
+
+        self.df["label"] = self.df.label.apply(self.process_label)
+
+        if not os.path.isfile(self.VOCAB_FILE):
+            filePointer = requests.get(self.VOCAB_FILE_URL, allow_redirects=True)           
+            if filePointer.ok:
+                with open(self.VOCAB_FILE, 'wb') as f:
+                    f.write(filePointer.content)
+            else:
+                raise RuntimeError("Error in fetching the vocab file")
+
+        self.tokenizer = BertTokenizer(self.VOCAB_FILE)
 
         RANDOM_SEED = 42
         np.random.seed(RANDOM_SEED)
@@ -168,7 +196,7 @@ class SentimentClassifier(nn.Module):
         """
         Initialzes the Traning step with the model initialized
 
-        :param model: Instance of the Sentimentclassifier class
+        :param model: Instance of the NewsClassifier class
         """
         history = defaultdict(list)
         best_accuracy = 0
@@ -197,7 +225,7 @@ class SentimentClassifier(nn.Module):
         """
         Training process happens and accuracy is returned as output
 
-        :param model: Instance of the Sentimentclassifier class
+        :param model: Instance of the NewsClassifier class
 
         :result: output - Accuracy of the model after training
         """
@@ -234,7 +262,7 @@ class SentimentClassifier(nn.Module):
         """
         Validation process happens and validation / test accuracy is returned as output
 
-        :param model: Instance of the Sentimentclassifier class
+        :param model: Instance of the NewsClassifier class
         :param data_loader: Data loader for either test / validation dataset
 
         :result: output - Accuracy of the model after testing
@@ -254,7 +282,6 @@ class SentimentClassifier(nn.Module):
                 _, preds = torch.max(outputs, dim=1)
 
                 loss = self.loss_fn(outputs, targets)
-
                 correct_predictions += torch.sum(preds == targets)
                 losses.append(loss.item())
 
@@ -265,7 +292,7 @@ class SentimentClassifier(nn.Module):
         """
         Prediction after the training step is over
 
-        :param model: Instance of the Sentimentclassifier class
+        :param model: Instance of the NewsClassifier class
         :param data_loader: Data loader for either test / validation dataset
 
         :result: output - Returns prediction results, prediction probablities and corresponding values
@@ -301,7 +328,48 @@ class SentimentClassifier(nn.Module):
 
 
 if __name__ == "__main__":
-    model = SentimentClassifier()
+
+    parser = argparse.ArgumentParser(description="PyTorch BERT Example")
+
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=5,
+        metavar="N",
+        help="number of epochs to train (default: 14)",
+    )
+
+    parser.add_argument(
+        "--tracking-uri", type=str, default="http://localhost:5000/", help="mlflow tracking uri"
+    )
+
+    parser.add_argument(
+        "--num-samples",
+        type=int,
+        default=15000,
+        metavar="N",
+        help="Number of samples to be used for training and evaluation steps (default: 15000)",
+    )
+
+    parser.add_argument(
+        "--save-model",
+        action="store_true",
+        default=True,
+        help="For Saving the current Model",
+    )
+
+    parser.add_argument(
+        "--vocab-file",
+        default="https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-cased-vocab.txt",
+        help="Custom vocab file"
+    )
+
+    args = parser.parse_args()
+    print("Tracking URI: ", args.tracking_uri)
+    mlflow.set_tracking_uri(args.tracking_uri)
+    mlflow.start_run()
+    
+    model = NewsClassifier(args)
     model = model.to(model.device)
     model.prepare_data()
     model.setOptimizer()
@@ -320,4 +388,9 @@ if __name__ == "__main__":
     print(classification_report(y_test, y_pred, target_names=class_names))
 
     print("\n\n\n SAVING MODEL")
-    torch.save(model.state_dict(), "bert_pytorch.pt")
+    
+    if args.save_model:
+        mlflow.pytorch.log_model(model, artifact_path="model", requirements_file="requirements.txt",
+                                 extra_files=["class_mapping.json", "bert_base_cased_vocab.txt"])
+
+    mlflow.end_run()
