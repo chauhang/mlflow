@@ -174,8 +174,8 @@ def main():
     scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
     for epoch in range(1, args.epochs + 1):
         train(args, scripted_model, device, train_loader, optimizer, epoch)
-        test(scripted_model, device, test_loader)
         scheduler.step()
+    test(scripted_model, device, test_loader)
     mlflow.tracking.set_tracking_uri(args.tracking_uri)
     mlflow.pytorch.log_model(model, "model")  # logging scripted model
     uri_path = mlflow.get_artifact_uri()
