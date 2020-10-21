@@ -173,7 +173,7 @@ def update_deployment(flavor, model_uri, target, name, config):
 @commands.command("delete")
 @deployment_name
 @target_details
-def delete_deployment(target, name, config=None):
+def delete_deployment(target, name):
     """
     Delete the deployment with name given at `--name` from the specified target.
     """
