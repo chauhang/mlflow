@@ -24,6 +24,8 @@ import requests
 from torchtext.utils import download_from_url, extract_archive
 from torchtext.datasets.text_classification import URLS
 import mlflow.pytorch
+from mlflow.tracking.client import MlflowClient
+from mlflow.entities import ViewType
 
 class_names = ["World", "Sports", "Business", "Sci/Tech"]
 
@@ -69,7 +71,7 @@ class NewsClassifier(nn.Module):
     def __init__(self, args):
         super(NewsClassifier, self).__init__()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.PRE_TRAINED_MODEL_NAME = "bert-base-cased"
+        self.PRE_TRAINED_MODEL_NAME = "bert-base-uncased"
         self.EPOCHS = args.epochs
         self.df = None
         self.tokenizer = None
@@ -88,11 +90,14 @@ class NewsClassifier(nn.Module):
         self.NUM_SAMPLES_COUNT = args.num_samples
         n_classes = len(class_names)
         self.VOCAB_FILE_URL = args.vocab_file
-        self.VOCAB_FILE = "bert_base_cased_vocab.txt"
+        self.VOCAB_FILE = "bert_base_uncased_vocab.txt"
 
+        self.drop = nn.Dropout(p=0.2)
         self.bert = BertModel.from_pretrained(self.PRE_TRAINED_MODEL_NAME)
-        self.drop = nn.Dropout(p=0.3)
-        self.out = nn.Linear(self.bert.config.hidden_size, n_classes)
+        for param in self.bert.parameters():
+            param.requires_grad = False
+        self.fc1 = nn.Linear(self.bert.config.hidden_size, 512)
+        self.out = nn.Linear(512, n_classes)
 
     def forward(self, input_ids, attention_mask):
         """
@@ -102,8 +107,10 @@ class NewsClassifier(nn.Module):
         :return: output - label for the input text
         """
         _, pooled_output = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        output = self.drop(pooled_output)
-        return self.out(output)
+        output = F.relu(self.fc1(pooled_output))
+        output = self.drop(output)
+        output = self.out(output)
+        return output
 
     @staticmethod
     def process_label(rating):
@@ -143,7 +150,7 @@ class NewsClassifier(nn.Module):
 
         self.df.columns = ["label", "title", "description"]
         self.df.sample(frac=1)
-        self.df = self.df.iloc[: self.NUM_SAMPLES_COUNT]
+        self.df = self.df.iloc[:self.NUM_SAMPLES_COUNT]
 
         self.df["label"] = self.df.label.apply(self.process_label)
 
@@ -162,10 +169,10 @@ class NewsClassifier(nn.Module):
         torch.manual_seed(RANDOM_SEED)
 
         self.df_train, self.df_test = train_test_split(
-            self.df, test_size=0.1, random_state=RANDOM_SEED
+            self.df, test_size=0.1, random_state=RANDOM_SEED, stratify=self.df['label']
         )
         self.df_val, self.df_test = train_test_split(
-            self.df_test, test_size=0.5, random_state=RANDOM_SEED
+            self.df_test, test_size=0.5, random_state=RANDOM_SEED, stratify=self.df_test['label']
         )
 
         self.train_data_loader = self.create_data_loader(
@@ -182,7 +189,7 @@ class NewsClassifier(nn.Module):
         """
         Sets the optimizer and scheduler functions
         """
-        self.optimizer = AdamW(model.parameters(), lr=2e-5, correct_bias=False)
+        self.optimizer = AdamW(model.parameters(), lr=1e-3, correct_bias=False)
         self.total_steps = len(self.train_data_loader) * self.EPOCHS
 
         self.scheduler = get_linear_schedule_with_warmup(
@@ -343,11 +350,19 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--mlflow-experiment-name", type=str, default="default", help="mlflow experiment name"
+    )
+
+    parser.add_argument(
+        "--register-model-name", type=str, default="bert_model", help="Model Name to register in mlflow"
+    )
+
+    parser.add_argument(
         "--num-samples",
         type=int,
         default=15000,
         metavar="N",
-        help="Number of samples to be used for training and evaluation steps (default: 15000)",
+        help="Number of samples to be used for training and evaluation steps (default: 15000) Maximum:100000",
     )
 
     parser.add_argument(
@@ -356,13 +371,15 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--vocab-file",
-        default="https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-cased-vocab.txt",
+        default="https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-vocab.txt",
         help="Custom vocab file",
     )
 
     args = parser.parse_args()
     print("Tracking URI: ", args.tracking_uri)
     mlflow.set_tracking_uri(args.tracking_uri)
+    client = MlflowClient(args.tracking_uri)
+    mlflow.set_experiment(args.mlflow_experiment_name)
     mlflow.start_run()
 
     model = NewsClassifier(args)
@@ -381,16 +398,23 @@ if __name__ == "__main__":
         model, model.test_data_loader
     )
 
+    if args.save_model:
+        mlflow.pytorch.log_model(model, artifact_path="model", requirements_file="requirements.txt",
+                                 extra_files=["class_mapping.json", "bert_base_cased_vocab.txt"])
+
     print(classification_report(y_test, y_pred, target_names=class_names))
 
-    print("\n\n\n SAVING MODEL")
+    identifier = mlflow.get_experiment_by_name(args.mlflow_experiment_name)
 
-    if args.save_model:
-        mlflow.pytorch.log_model(
-            model,
-            artifact_path="model",
-            requirements_file="requirements.txt",
-            extra_files=["class_mapping.json", "bert_base_cased_vocab.txt"],
-        )
+    exp_dict = dict(client.search_runs(experiment_ids=identifier.experiment_id, run_view_type=ViewType.ACTIVE_ONLY)[0])
 
-    mlflow.end_run()
+    artifact_uri = exp_dict.get("info").artifact_uri
+    best_model_run_id = exp_dict.get("info").run_uuid
+    print("model run id",best_model_run_id)
+    mlflow.register_model(
+        artifact_uri,
+        args.register_model_name
+    )
+
+
+

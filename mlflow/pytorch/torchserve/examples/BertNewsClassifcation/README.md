@@ -16,14 +16,12 @@ move to `mlflow/pytorch/torchserve` and run the following commands to install de
 ## Generating model file (.pt)
 
 This example uses the pretrained bert model to perform text classification on news reports. 
+ 
+Command: `python bert_pytorch.py --epochs 20 --tracking-uri http://localhost:5000/ --mlflow-experiment-name demo --register-model-name bert_model --num-samples 5000`
 
-Run the `news_classifier.py` script which will fine tune the model based on play store review comments. 
+By default this example logs the requirements(`requirements.txt`) and vocabulary file(`bert_base_cased_vocab.txt`) along with the model into mlflow server.
 
-By default,  the script exports the model file as `bert_pytorch.pt` and generates a sample input file `sample.json`
-
-Command: `python news_classifier.py --epochs 5`
-
-By default this example logs the requirements(`requirements.txt`) and vocabulary file(`bert_base_cased_vocab.txt`) along with the model.
+Once the model is logged into mlflow, the model will get registered as `bert_model`. 
 
 ## Starting torchserve
 
@@ -44,4 +42,4 @@ Run the following command to invoke prediction of our sample input
 
 `mlflow deployments predict --name news_classification_test --target torchserve --input_path sample.json  --output_path output.json`
 
-Bert model would predict the classification of the given news text and store the output in `output.json`.
+Bert model would predict the classification of the given news text and stores the output in `output.json`.
