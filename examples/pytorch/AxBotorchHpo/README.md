@@ -12,6 +12,12 @@ which will help in identifying the best set of parameters.
 
 The best model which has these paramters could then be used for deployment in specific cases.
 
+### Package Dependencies
+
+Dependent packages can be installed using `requirements.txt` as below
+
+`pip install -r requirements.txt`
+
 ### Running the code
 
 Run the following command
