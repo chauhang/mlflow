@@ -171,14 +171,16 @@ def update_deployment(flavor, model_uri, target, name, config):
 
 
 @commands.command("delete")
+@parse_custom_arguments
 @deployment_name
 @target_details
-def delete_deployment(target, name):
+def delete_deployment(target, name, config):
     """
     Delete the deployment with name given at `--name` from the specified target.
     """
+    config_dict = _user_args_to_dict(config)
     client = interface.get_deploy_client(target)
-    client.delete_deployment(name)
+    client.delete_deployment(name, config_dict)
     click.echo("Deployment {} is deleted".format(name))
 
 
