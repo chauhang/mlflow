@@ -218,11 +218,19 @@ Here is an example plot of the :ref:`quick start tutorial <quickstart>` with the
   X-axis relative time - graphs the time relative to the first metric logged, for each run
 
 
+.. _automatic-logging:
+
 Automatic Logging
 =================
 
-Automatic logging allows you to log metrics, parameters, and models without the need for explicit
-log statements, and is currently supported for:
+Automatic logging allows you to log metrics, parameters, and models without the need for explicit log statements.
+
+There are two ways to use autologging:
+
+#. Call :py:func:`mlflow.autolog` before your training code. This will enable autologging for each supported library you have installed as soon as you import it.
+#. Use library-specific autolog calls for each library you use in your code. See below for examples.
+
+The following libraries support autologging:
 
 .. contents::
   :local:
@@ -420,6 +428,41 @@ Autologging captures the following information:
 |           |                        | Logs the parameters of the `EarlyStoppingCallback`_ and  |               |                                                                                                                                                                       |
 |           |                        | `OneCycleScheduler`_ callbacks                           |               |                                                                                                                                                                       |
 +-----------+------------------------+----------------------------------------------------------+---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+
+Pytorch (experimental)
+--------------------------
+
+Call :py:func:`mlflow.pytorch.autolog` before your training code to enable automatic logging of metrics and parameters. See example usages with `Pytorch <https://github.com/chauhang/mlflow/tree/master/examples/pytorch/MNIST>`_.
+
+Whether you are using torch 1.5 or 1.6, the respective metrics associated with ``EarlyStopping Callabacks`` and ``pytorch_lightning.trainer`` are automatically logged.
+As an example, try running the `MLflow Pytorch examples <https://github.com/chauhang/mlflow/tree/master/examples/pytorch/MNIST>`_.
+
+Autologging captures the following information:
+
++------------------------------------------+------------------------------------------------------------+-------------------------------------------------------------------------------------+---------------+-----------------------------------------------------------------------------------------------------------------------------------------------+
+| Framework/module                         | Metrics                                                    | Parameters                                                                          | Tags          | Artifacts                                                                                                                                     |
++------------------------------------------+------------------------------------------------------------+-------------------------------------------------------------------------------------+---------------+-----------------------------------------------------------------------------------------------------------------------------------------------+
+| ``trainer.callbacks.earlystopping``      | Training loss; validation loss;average_test_accuracy;      | ``fit()`` parameters; optimizer name; learning rate; epsilon.                       | --            | Model summary on training start; `MLflow Model <https://mlflow.org/docs/latest/models.html>`_ (Pytorch model) on training end                 |
+|                                          | user-defined-metrics.                                      |                                                                                     |               | Also facilitates logging of torchscript models.                                                                                               |
+|                                          | Metrics from the ``EarlyStopping`` callbacks.              | Parameters associated with ``EarlyStopping``.                                       |               | Optional Documents such as ExtraFiles,requirements.txt on Training End could also be logged.                                                  |
+|                                          | For example, ``stopped_epoch``, ``restored_epoch``,        | For example, ``min_delta``, ``patience``, ``baseline``,                             |               | Best Pytorch model  Checkpoint if training stops due to early stopping callback.                                                              |
+|                                          | ``restore_best_weight``, etc.                              | ``restore_best_weights``, etc                                                       |               |                                                                                                                                               |
++------------------------------------------+------------------------------------------------------------+-------------------------------------------------------------------------------------+---------------+-----------------------------------------------------------------------------------------------------------------------------------------------+
+| ``trainer``                              |Training loss;validation loss;average_test_accuracy;        | ``fit()`` parameters; optimizer name; learning rate; epsilon                        | --            | Model summary on training start; `MLflow Model <https://mlflow.org/docs/latest/models.html>`_ (Pytorch model) on training end                 |
+|                                          |user-defined-metrics.                                       |                                                                                     |               | Also facilitates logging of torchscript models.                                                                                               |
+|                                          |                                                            |                                                                                     |               | Optional Documents such as ExtraFiles,requirements.txt on Training End could also be logged                                                   |
+|                                          |                                                            |                                                                                     |               |                                                                                                                                               |
++------------------------------------------+------------------------------------------------------------+-------------------------------------------------------------------------------------+---------------+-----------------------------------------------------------------------------------------------------------------------------------------------+
+
+If no active run exists when ``autolog()`` captures data, MLflow will automatically create a run to log information.
+Also, MLflow will then automatically end the run once training ends via calls to  ``pytorch_lightning.trainer.fit()`` or once ``pytorch`` models are exported via ``mlflow.pytorch.log_model()``.
+
+If a run already exists when ``autolog()`` captures data, MLflow will log to that run but not automatically end that run after training.
+
+.. note::
+  - Parameters not explicitly passed by users (parameters that use default values) while using ``pytorch_lightning.trainer.fit()`` are not currently automatically logged.
+  - This feature is experimental - the API and format of the logged data are subject to change
+
 
 .. _organizing_runs_in_experiments:
 
@@ -877,4 +920,4 @@ internal use. The following tags are set automatically by MLflow, when appropria
 | ``mlflow.log-model.history``  | (Experimental) Model metadata collected by log-model calls. Includes the serialized    |
 |                               | form of the MLModel model files logged to a run, although the exact format and         |
 |                               | information captured is subject to change.                                             |
-+-------------------------------+----------------------------------------------------------------------------------------+
++-------------------------------+---------------------------------------------------------------------------------------rc
