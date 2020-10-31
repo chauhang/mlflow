@@ -302,7 +302,7 @@ for installation instructions, and see the
 for usage instructions and examples.
 
 - `mlflow-redisai <https://github.com/RedisAI/mlflow-redisai>`_
-- `mlflow-torchserve <https://github.com/chauhang/mlflow/tree/feature-torchserve-plugin/mlflow/pytorch/torchserve>`_
+- `mlflow-torchserve <https://github.com/mlflow/mlflow-torchserve>`_
 
 
 Project Backend Plugins
