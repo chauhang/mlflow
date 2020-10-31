@@ -432,10 +432,10 @@ Autologging captures the following information:
 Pytorch (experimental)
 --------------------------
 
-Call :py:func:`mlflow.pytorch.autolog` before your training code to enable automatic logging of metrics and parameters. See example usages with `Pytorch <https://github.com/chauhang/mlflow/tree/master/examples/pytorch/MNIST>`_.
+Call :py:func:`mlflow.pytorch.autolog` before your training code to enable automatic logging of metrics and parameters. See example usages with `Pytorch <https://github.com/mlflow/mlflow/tree/master/examples/pytorch>`_.
 
 Whether you are using torch 1.5 or 1.6, the respective metrics associated with ``EarlyStopping Callabacks`` and ``pytorch_lightning.trainer`` are automatically logged.
-As an example, try running the `MLflow Pytorch examples <https://github.com/chauhang/mlflow/tree/master/examples/pytorch/MNIST>`_.
+As an example, try running the `MLflow Pytorch examples <https://github.com/mlflow/mlflow/tree/master/examples/pytorch>`_.
 
 Autologging captures the following information:
 
