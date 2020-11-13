@@ -239,6 +239,9 @@ def log_model(
         **kwargs,
     )
 
+def save_state_dict(pytorch_model, path, **kwargs):
+    save_model(pytorch_model, path, save_as_state_dict=True, **kwargs)
+
 
 def save_model(
     pytorch_model,
@@ -251,6 +254,7 @@ def save_model(
     input_example: ModelInputExample = None,
     requirements_file=None,
     extra_files=None,
+    save_as_state_dict=False,
     **kwargs
 ):
     """
@@ -399,7 +403,9 @@ def save_model(
         f.write(pickle_module.__name__)
     # Save pytorch model
     model_path = os.path.join(model_data_path, _SERIALIZED_TORCH_MODEL_FILE_NAME)
-    if isinstance(pytorch_model, torch.jit.ScriptModule):
+    if save_as_state_dict:
+        torch.save(pytorch_model.state_dict(), model_path, pickle_module=pickle_module, **kwargs)
+    elif isinstance(pytorch_model, torch.jit.ScriptModule):
         torch.jit.ScriptModule.save(pytorch_model, model_path)
     else:
         torch.save(pytorch_model, model_path, pickle_module=pickle_module, **kwargs)
@@ -516,7 +522,17 @@ def _load_model(path, **kwargs):
             return torch.jit.load(model_path)
 
 
-def load_model(model_uri, **kwargs):
+def load_state_dict(model_uri, model_class_obj):
+    import torch
+    model_path = load_model(model_uri, load_state_dict=True)
+    model_path = os.path.join(model_path, _SERIALIZED_TORCH_MODEL_FILE_NAME)
+
+    state_dict = torch.load(model_path)
+    model_class_obj.load_state_dict(state_dict)
+    return model_class_obj
+
+
+def load_model(model_uri, load_state_dict=False, **kwargs):
     """
     Load a PyTorch model from a local file or a run.
 
@@ -571,6 +587,8 @@ def load_model(model_uri, **kwargs):
             torch.__version__,
         )
     torch_model_artifacts_path = os.path.join(local_model_path, pytorch_conf["model_data"])
+    if load_state_dict:
+        return torch_model_artifacts_path
     return _load_model(path=torch_model_artifacts_path, **kwargs)
 
 
