@@ -138,7 +138,7 @@ def _autolog(log_every_n_epoch=1):
             :param pl_module: pytorch lightning base module
             """
 
-            mlflow.pytorch.log_model(pytorch_model=trainer.model, artifact_path="model")
+            mlflow.pytorch.log_model(pytorch_model=trainer.model, artifact_path="model", save_as_state_dict=True)
 
             if self.early_stopping and trainer.checkpoint_callback.best_model_path:
                 try_mlflow_log(

@@ -79,6 +79,7 @@ def log_model(
     await_registration_for=DEFAULT_AWAIT_MAX_SLEEP_SECONDS,
     requirements_file=None,
     extra_files=None,
+    save_as_state_dict=False,
     **kwargs
 ):
     """
@@ -236,6 +237,7 @@ def log_model(
         await_registration_for=await_registration_for,
         requirements_file=requirements_file,
         extra_files=extra_files,
+        save_as_state_dict=save_as_state_dict,
         **kwargs,
     )
 
