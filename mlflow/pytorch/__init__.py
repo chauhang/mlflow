@@ -241,7 +241,18 @@ def log_model(
         **kwargs,
     )
 
+
 def save_state_dict(pytorch_model, path, **kwargs):
+    """
+    Save the model as state dict to a path on the local file system
+
+    :param pytorch_model: PyTorch model to be saved. Can be either an eager model (subclass of
+                          ``torch.nn.Module``) or scripted model prepared via ``torch.jit.script``
+                          or ``torch.jit.trace``.
+    :param path: Local path where the model is to be saved.
+    :param kwargs: kwargs to pass to ``torch.save`` method.
+    """
+
     save_model(pytorch_model, path, save_as_state_dict=True, **kwargs)
 
 
@@ -462,6 +473,7 @@ def save_model(
         FLAVOR_NAME,
         model_data=model_data_subpath,
         pytorch_version=torch.__version__,
+        state_dict=save_as_state_dict,
         **torchserve_artifacts_config,
     )
     pyfunc.add_to_model(
@@ -525,7 +537,27 @@ def _load_model(path, **kwargs):
 
 
 def load_state_dict(model_uri, model_class_obj):
+    """
+    Load a PyTorch model state dict from a local file or a run.
+
+    :param model_uri: The location, in URI format, of the MLflow model, for example:
+
+                    - ``/Users/me/path/to/local/model``
+                    - ``relative/path/to/local/model``
+                    - ``s3://my_bucket/path/to/model``
+                    - ``runs:/<mlflow_run_id>/run-relative/path/to/model``
+                    - ``models:/<model_name>/<model_version>``
+                    - ``models:/<model_name>/<stage>``
+
+                    For more information about supported URI schemes, see
+                    `Referencing Artifacts <https://www.mlflow.org/docs/latest/concepts.html#
+                    artifact-locations>`_.
+    :param model_class_obj: Instance of the model class
+
+    :return: A pytorch model instance
+    """
     import torch
+
     model_path = load_model(model_uri, load_state_dict=True)
     model_path = os.path.join(model_path, _SERIALIZED_TORCH_MODEL_FILE_NAME)
 

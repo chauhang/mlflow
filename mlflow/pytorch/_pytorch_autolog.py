@@ -9,10 +9,6 @@ from pytorch_lightning.core.memory import ModelSummary
 from pytorch_lightning.utilities import rank_zero_only
 from mlflow.utils.autologging_utils import try_mlflow_log, wrap_patch
 from mlflow.utils.annotations import experimental
-from pytorch_lightning.overrides.data_parallel import (
-    LightningDistributedDataParallel,
-    LightningDataParallel,
-)
 
 logging.basicConfig(level=logging.ERROR)
 
@@ -141,12 +137,7 @@ def _autolog(log_every_n_epoch=1):
             :param trainer: pytorch lightning trainer instance
             :param pl_module: pytorch lightning base module
             """
-
-            is_dp_module = isinstance(
-                trainer.model, (LightningDistributedDataParallel, LightningDataParallel)
-            )
-            model = trainer.model.module if is_dp_module else trainer.model
-            mlflow.pytorch.log_model(pytorch_model=model, artifact_path="model", save_as_state_dict=True)
+            mlflow.pytorch.log_model(pytorch_model=trainer.model, artifact_path="model")
 
             if self.early_stopping and trainer.checkpoint_callback.best_model_path:
                 try_mlflow_log(
