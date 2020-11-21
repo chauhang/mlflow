@@ -8,11 +8,6 @@ namely namely SETOSA` , `VERSICOLOR`, `VIRGINICA`. The input features to the mod
 types are constituents of the model signature and is stored in the MLmodel file. For more details on model_signature, see
 the [docs](https://mlflow.org/docs/latest/models.html#model-metadata).
 
-## Package Requirement
-
-Install the required packages using the following command
-
-`pip install -r requirements.txt`
 
 ### Running the code
 
@@ -49,6 +44,3 @@ Or to run the training script directly with custom parameters:
 python iris.py \
     --max_epochs 5 \
 ```
-
-
-
