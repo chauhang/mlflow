@@ -13,4 +13,3 @@ entry_points:
           python AxHyperOptimizationPTL.py \
             --max_epochs {max_epochs} \
             --total_trials {total_trials} \
-
