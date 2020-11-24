@@ -1,0 +1,13 @@
+name: iris-classification
+
+conda_env: conda.yaml
+
+entry_points:
+  main:
+    parameters:
+      max_epochs: {type: int, default: 3}
+
+    command: |
+          python iris.py \
+            --max_epochs {max_epochs} \
+           
