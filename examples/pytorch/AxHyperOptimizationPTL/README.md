@@ -3,12 +3,6 @@ In this example, we train a Pytorch Lightning model to classify [CIFAR-10 datase
 A parent run will be created during the training process,which would dump the baseline model and relevant parameters,metrics and model along with its summary,subsequently followed by a set of nested child runs, which will dump the trial results.
 The best parameters would be dumped into the parent run once the experiments are completed.
 
-## Package Requirement
-
-Install the required packages using the following command
-
-`pip install -r requirements.txt`
-
 ### Running the code
 To run the example via MLflow, navigate to the `mlflow/examples/pytorch/axbotorch` directory and run the command
 
