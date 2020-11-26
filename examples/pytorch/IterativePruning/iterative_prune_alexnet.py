@@ -152,11 +152,9 @@ if __name__ == "__main__":
         tracking_uri = "http://localhost:5000/"
 
     mlflow.tracking.set_tracking_uri(tracking_uri)
-    print("tracking uri is:", mlflow.get_tracking_uri())
     client = MlflowClient(tracking_uri)
 
     identifier = client.get_experiment_by_name(mlflow_experiment_name)
-    print("identfier is :", identifier)
     mlflow.set_experiment(mlflow_experiment_name)
     runs = client.search_runs(
         experiment_ids=identifier.experiment_id, run_view_type=ViewType.ACTIVE_ONLY
@@ -164,7 +162,6 @@ if __name__ == "__main__":
     runs_dict = dict(runs)
     run_id = runs_dict.get("info").run_id
     artifact_uri = runs_dict.get("info").artifact_uri
-    print("run_id is ", run_id)
 
     model = load_model(artifact_uri)
     dm = classifier.DataModule()

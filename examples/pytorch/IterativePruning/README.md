@@ -5,7 +5,11 @@ that are nearer to zero as zero. The script is an example of later. Pruning a mo
 accuracy of the model, while it makes the model lightwieght. In this example, we train a Alexnet model to classify 
 CIFAR 10 dataset. Basemodel along with the parameters, metrics and summary are stored in mlflow.
 Subsequently, the trained Alexnet model stored in mlflow is downloaded and pruned iteratively by using the custom 
-inputs provided from the cli. AXClient is used to provide the initial pruning percentage as well as decides the number
+inputs provided from the cli. Ax is a platform for optimizing any kind of experiment, including machine learning experiments,
+A/B tests, and simulations. [Ax](https://ax.dev/docs/why-ax.html) can optimize discrete configurations using multi-armed bandit optimization,
+and continuous (e.g., integer or floating point)-valued configurations using Bayesian optimization. The objective function of the experiment
+trails is "test_accuracy" based on which the model is evaluated at each trial and the best set of parameters are derived.
+AXClient is used to provide the initial pruning percentage as well as decides the number
 of trails to be run. The summary of the pruned model is captured in a seperate file and stored as an artifact in mflow.
 
 
