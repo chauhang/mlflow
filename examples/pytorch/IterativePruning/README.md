@@ -76,6 +76,11 @@ and navigating to [http://localhost:5000](http://localhost:5000).
 
 In the MLflow UI, the Base Model is stored as the Parent Run and the runs for each iterations of the pruing is logged as nested child runs, as shown in the
 snippets below:
-![MLflow UI](screenshots/IPSS.jpg)
+
+![IPSS](https://user-images.githubusercontent.com/51693147/100379068-4e9bc580-303a-11eb-8959-e0876ffad7e1.JPG)
+
+We can compare the child runs in the UI, as given below:
+
+![compare](https://user-images.githubusercontent.com/51693147/100379665-3ed0b100-303b-11eb-9df0-7ad5fd21ada9.JPG)
 
 For more information on MLflow tracking, click [here](https://www.mlflow.org/docs/latest/tracking.html#mlflow-tracking) to view documentation.
