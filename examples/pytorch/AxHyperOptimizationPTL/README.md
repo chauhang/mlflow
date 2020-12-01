@@ -15,7 +15,7 @@ This will run `AxHyperOptimizationPTL.py` with the default set of parameters suc
 In order to run the file with custom parameters, run the command
 
 ```
-mlflow run . -P max_epochs=X -P total_trails = Y
+mlflow run . -P max_epochs=X -P total_trials = Y
 ```
 
 where `X` is your desired value for `max_epochs` and `Y` is your desired value for `total_trials`.
