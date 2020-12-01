@@ -15,46 +15,8 @@ of trails to be run. The summary of the pruned model is captured in a seperate f
 
 ### Running the code to train the base model
 
-To run the example via MLflow, navigate to the `iterative-pruning/alexnet.py` directory and run the command
 
-```
-mlflow run .
-```
-
-This will run `alexnet.py` with the default set of parameters such as  `--max_epochs=5`. You can see the default value in the `MLproject` file.
-
-In order to run the file with custom parameters, run the command
-
-```
-mlflow run . -P max_epochs=X -P mlflow_experiment_name =ExperimentName -P mlflow_run_name=RunName
-```
-
-where `X` is your desired value for `max_epochs`, "ExperimentName" is the name of the mlflow experiment and "RunName" 
-is the name of mlflow run name.
-
-If you have the required modules for the file and would like to skip the creation of a conda environment, add the argument `--no-conda`.
-
-```
-mlflow run . --no-conda
-
-```
-
-
-### Passing custom training parameters
-
-The parameters can be overridden via the command line:
-
-1. max_epochs - Number of epochs to train models. Training can be interrupted early via Ctrl+C
-2. mlflow_experiment_name -Name of the mlflow experiment
-3. mlflow_run_name - Run name of the mlflow experiment
-
-
-For example:
-```
-mlflow run . -P max_epochs=5 -P mlflow_experiment_name=Prune -P mlflow_run_name=BaseModel
-```
-
-Or to run the training script directly with custom parameters:
+To run the training script directly with custom parameters:
 ```
 python alexnet.py \
     --max_epochs 5  \
@@ -81,10 +43,10 @@ and navigating to [http://localhost:5000](http://localhost:5000).
 In the MLflow UI, the Base Model is stored as the Parent Run and the runs for each iterations of the pruing is logged as nested child runs, as shown in the
 snippets below:
 
-![IPSS](https://user-images.githubusercontent.com/51693147/100379068-4e9bc580-303a-11eb-8959-e0876ffad7e1.JPG)
+![prune_ankan](https://user-images.githubusercontent.com/51693147/100785435-a66d6e80-3436-11eb-967a-c96b23625d1c.JPG)
 
 We can compare the child runs in the UI, as given below:
 
-![compare](https://user-images.githubusercontent.com/51693147/100379665-3ed0b100-303b-11eb-9df0-7ad5fd21ada9.JPG)
+![prune_capture](https://user-images.githubusercontent.com/51693147/100785071-2515dc00-3436-11eb-8e3a-de2d569287e6.JPG)
 
 For more information on MLflow tracking, click [here](https://www.mlflow.org/docs/latest/tracking.html#mlflow-tracking) to view documentation.

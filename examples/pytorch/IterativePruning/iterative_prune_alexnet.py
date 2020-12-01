@@ -115,12 +115,8 @@ def iterative_prune(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser = pl.Trainer.add_argparse_args(parent_parser=parser)
 
-    parser.add_argument(
-        "--max_epochs",
-        default=3,
-        help="Describes the number of times a neural network has to be trained",
-    )
     parser.add_argument(
         "--mlflow_experiment_name",
         help="Name of MLFLOW experiment in which results would be dumped",

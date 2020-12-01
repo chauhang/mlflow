@@ -7,11 +7,8 @@ entry_points:
     parameters:
       max_epochs: {type: int, default: 3}
       mlflow_run_name: {type: str, default: 'BaseModel'}
-      mlflow_experiment_name: {type: str, default: "Default"}
-
 
     command: |
           python alexnet.py \
             --max_epochs {max_epochs} \
-            --mlflow_run_name {mlflow_run_name} \
-            --mlflow_experiment_name {mlflow_experiment_name} \
+            --mlflow_run_name {mlflow_run_name}

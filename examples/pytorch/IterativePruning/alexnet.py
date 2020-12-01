@@ -166,21 +166,12 @@ class AlexNet(pl.LightningModule):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser = pl.Trainer.add_argparse_args(parent_parser=parser)
 
-    parser.add_argument(
-        "--mlflow_experiment_name",
-        default="Default",
-        help="Name of MLFLOW experiment in which results would be dumped",
-    )
     parser.add_argument(
         "--mlflow_run_name",
         default="BaseModel",
         help="Name of MLFLOW experiment run in which results would be dumped",
-    )
-    parser.add_argument(
-        "--max_epochs",
-        default=3,
-        help="Describes the number of times a neural network has to be trained",
     )
 
     args = parser.parse_args()
@@ -192,10 +183,10 @@ if __name__ == "__main__":
 
     mlflow.tracking.set_tracking_uri(tracking_uri)
 
+    experiment_name = os.environ["MLFLOW_EXPERIMENT_NAME"]
+    mlflow.set_experiment(experiment_name)
     run_name = args.mlflow_run_name
     mlflow.start_run(run_name=run_name)
-    experiment_name = args.mlflow_experiment_name
-    mlflow.set_experiment(experiment_name)
     trainer = pl.Trainer(max_epochs=int(args.max_epochs))
     model = AlexNet()
     dm = DataModule()
