@@ -12,6 +12,11 @@ trails is "test_accuracy" based on which the model is evaluated at each trial an
 AXClient is used to provide the initial pruning percentage as well as decides the number
 of trails to be run. The summary of the pruned model is captured in a seperate file and stored as an artifact in mflow.
 
+### Setting up Environment variables.
+
+Run the following command on the terminal to set the Experiment name environment variable.
+
+`export MLFLOW_EXPERIMENT_NAME=Prune`
 
 ### Running the code to train the base model
 
@@ -19,8 +24,7 @@ of trails to be run. The summary of the pruned model is captured in a seperate f
 To run the training script directly with custom parameters:
 ```
 python alexnet.py \
-    --max_epochs 5  \
-    --mlflow_experiment_name Prune \
+    --max_epochs 3  \
     --mlflow_run_name BaseModel
 ```
 
