@@ -15,6 +15,7 @@ import yaml
 import cloudpickle
 import numpy as np
 import pandas as pd
+from collections import OrderedDict
 from distutils.version import LooseVersion
 import posixpath
 
@@ -240,6 +241,125 @@ def log_model(
     )
 
 
+def log_state_dict(state_dict, artifact_path, pickle_module=None, **kwargs):
+    """
+    Log a PyTorch model as an MLflow artifact for the current run.
+
+    :param state_dict: PyTorch model state dict to be saved.
+
+    :param artifact_path: Run-relative artifact path.
+
+    :param pickle_module: The module that PyTorch should use to serialize ("pickle") the specified
+                          ``pytorch_model``. This is passed as the ``pickle_module`` parameter
+                          to ``torch.save()``. By default, this module is also used to
+                          deserialize ("unpickle") the PyTorch model at load time.
+
+    :param kwargs: kwargs to pass to ``torch.save`` method.
+
+    .. code-block:: python
+        :caption: Example
+
+        import torch
+        import mlflow
+        import mlflow.pytorch
+        # X data
+        x_data = torch.Tensor([[1.0], [2.0], [3.0]])
+        # Y data with its expected value: labels
+        y_data = torch.Tensor([[2.0], [4.0], [6.0]])
+        # Partial Model example modified from Sung Kim
+        # https://github.com/hunkim/PyTorchZeroToAll
+        class Model(torch.nn.Module):
+            def __init__(self):
+               super().__init__()
+               self.linear = torch.nn.Linear(1, 1)  # One in and one out
+            def forward(self, x):
+                y_pred = self.linear(x)
+            return y_pred
+        # our model
+        model = Model()
+        criterion = torch.nn.MSELoss(size_average=False)
+        optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+        # Training loop
+        for epoch in range(500):
+            # Forward pass: Compute predicted y by passing x to the model
+            y_pred = model(x_data)
+            # Compute and print loss
+            loss = criterion(y_pred, y_data)
+            print(epoch, loss.data.item())
+            #Zero gradients, perform a backward pass, and update the weights.
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        # After training
+        for hv in [4.0, 5.0, 6.0]:
+            hour_var = torch.Tensor([[hv]])
+            y_pred = model(hour_var)
+            print("predict (after training)",  hv, model(hour_var).data[0][0])
+        # log the model
+        with mlflow.start_run() as run:
+            mlflow.log_param("epochs", 500)
+            mlflow.pytorch.log_state_dict(model, "models")
+
+            # logging scripted module
+            scripted_pytorch_model = torch.jit.script(model)
+            mlflow.pytorch.log_state_dict(scripted_pytorch_model, "models")
+    """
+    pickle_module = pickle_module or mlflow_pytorch_pickle_module
+    Model.log(
+        artifact_path=artifact_path,
+        flavor=mlflow.pytorch,
+        pytorch_model=state_dict,
+        pickle_module=pickle_module,
+        **kwargs,
+    )
+
+
+def save_state_dict(state_dict, path, mlflow_model=None, pickle_module=None, **kwargs):
+    """
+    Save the model as state dict to a path on the local file system
+
+    :param pytorch_model: PyTorch model to be saved. Can be either an eager model (subclass of
+                          ``torch.nn.Module``) or scripted model prepared via ``torch.jit.script``
+                          or ``torch.jit.trace``.
+    :param path: Local path where the model is to be saved.
+    :param kwargs: kwargs to pass to ``torch.save`` method.
+    """
+    pickle_module = pickle_module or mlflow_pytorch_pickle_module
+
+    import torch
+
+    if mlflow_model is None:
+        mlflow_model = Model()
+
+    os.makedirs(path)
+
+    model_data_subpath = "data"
+    model_data_path = os.path.join(path, model_data_subpath)
+    os.makedirs(model_data_path)
+
+    pickle_module_path = os.path.join(model_data_path, _PICKLE_MODULE_INFO_FILE_NAME)
+    with open(pickle_module_path, "w") as f:
+        f.write(pickle_module.__name__)
+
+    model_path = os.path.join(model_data_path, _SERIALIZED_TORCH_MODEL_FILE_NAME)
+    torch.save(state_dict, model_path, pickle_module=pickle_module, **kwargs)
+
+    mlflow_model.add_flavor(
+        FLAVOR_NAME,
+        model_data=model_data_subpath,
+        pytorch_version=torch.__version__,
+        state_dict=True,
+    )
+    pyfunc.add_to_model(
+        mlflow_model,
+        loader_module="mlflow.pytorch",
+        data=model_data_subpath,
+        pickle_module_name=pickle_module.__name__,
+    )
+    mlflow_model.save(os.path.join(path, MLMODEL_FILE_NAME))
+
+
 def save_model(
     pytorch_model,
     path,
@@ -362,9 +482,20 @@ def save_model(
             scripted_pytorch_model = torch.jit.script(model)
             mlflow.pytorch.save_model(scripted_pytorch_model, pytorch_model_path)
     """
+
     import torch
 
     pickle_module = pickle_module or mlflow_pytorch_pickle_module
+
+    if isinstance(pytorch_model, OrderedDict):
+        save_state_dict(
+            state_dict=pytorch_model,
+            path=path,
+            mlflow_model=mlflow_model,
+            pickle_module=pickle_module,
+            **kwargs,
+        )
+        return
 
     if not isinstance(pytorch_model, torch.nn.Module):
         raise TypeError("Argument 'pytorch_model' should be a torch.nn.Module")
@@ -455,6 +586,7 @@ def save_model(
         model_data=model_data_subpath,
         pytorch_version=torch.__version__,
         **torchserve_artifacts_config,
+        state_dict=False,
     )
     pyfunc.add_to_model(
         mlflow_model,
@@ -516,7 +648,72 @@ def _load_model(path, **kwargs):
             return torch.jit.load(model_path)
 
 
+def load_state_dict(model_uri):
+    """
+    Load a PyTorch model state dict from a local file or a run.
+
+    :param model_uri: The location, in URI format, of the MLflow model, for example:
+
+                    - ``/Users/me/path/to/local/model``
+                    - ``relative/path/to/local/model``
+                    - ``s3://my_bucket/path/to/model``
+                    - ``runs:/<mlflow_run_id>/run-relative/path/to/model``
+                    - ``models:/<model_name>/<model_version>``
+                    - ``models:/<model_name>/<stage>``
+
+                    For more information about supported URI schemes, see
+                    `Referencing Artifacts <https://www.mlflow.org/docs/latest/concepts.html#
+                    artifact-locations>`_.
+
+    :return: A pytorch model instance
+    """
+    import torch
+
+    model_path = _get_model_artifact_path(model_uri, state_dict=True)
+    model_path = os.path.join(model_path, _SERIALIZED_TORCH_MODEL_FILE_NAME)
+    state_dict = torch.load(model_path)
+    return state_dict
+
+
 def load_model(model_uri, **kwargs):
+    """
+    Load a PyTorch model from a local file or a run.
+
+    :param model_uri: The location, in URI format, of the MLflow model, for example:
+
+                      - ``/Users/me/path/to/local/model``
+                      - ``relative/path/to/local/model``
+                      - ``s3://my_bucket/path/to/model``
+                      - ``runs:/<mlflow_run_id>/run-relative/path/to/model``
+                      - ``models:/<model_name>/<model_version>``
+                      - ``models:/<model_name>/<stage>``
+
+                      For more information about supported URI schemes, see
+                      `Referencing Artifacts <https://www.mlflow.org/docs/latest/concepts.html#
+                      artifact-locations>`_.
+
+    :param kwargs: kwargs to pass to ``torch.load`` method.
+    :return: A PyTorch model.
+
+    .. code-block:: python
+        :caption: Example
+
+        import torch
+        import mlflow
+        import mlflow.pytorch
+        # Set values
+        model_path_dir = ...
+        run_id = "96771d893a5e46159d9f3b49bf9013e2"
+        pytorch_model = mlflow.pytorch.load_model("runs:/" + run_id + "/" + model_path_dir)
+        y_pred = pytorch_model(x_new_data)
+    """
+
+    torch_model_artifacts_path = _get_model_artifact_path(model_uri)
+    return _load_model(path=torch_model_artifacts_path, **kwargs)
+
+
+def _get_model_artifact_path(model_uri, state_dict=False):
+
     """
     Load a PyTorch model from a local file or a run.
 
@@ -571,7 +768,7 @@ def load_model(model_uri, **kwargs):
             torch.__version__,
         )
     torch_model_artifacts_path = os.path.join(local_model_path, pytorch_conf["model_data"])
-    return _load_model(path=torch_model_artifacts_path, **kwargs)
+    return torch_model_artifacts_path
 
 
 def _load_pyfunc(path, **kwargs):
@@ -612,24 +809,25 @@ class _PyTorchWrapper(object):
             return predicted
 
 
-def autolog(log_every_n_epoch=1):
+def autolog(log_every_n_epoch=1, log_models=True):
     """
-    Wrapper for `mlflow.pytorch._pytorch_autolog.autolog` method.
     Automatically log metrics, params, and models from `PyTorch Lightning
     <https://pytorch-lightning.readthedocs.io/en/latest>`_ model training.
-    Autologging is performed when you call the `fit` method of `pytorch_lightning.Trainer()
+    Autologging is performed when you call the `fit` method of
+    `pytorch_lightning.Trainer() \
     <https://pytorch-lightning.readthedocs.io/en/latest/trainer.html#>`_.
-
     **Note**: Autologging is only supported for PyTorch Lightning models,
-    i.e. models that subclass `pytorch_lightning.LightningModule
+    i.e. models that subclass
+    `pytorch_lightning.LightningModule \
     <https://pytorch-lightning.readthedocs.io/en/latest/lightning_module.html>`_.
     In particular, autologging support for vanilla Pytorch models that only subclass
-    `torch.nn.Module <https://pytorch.org/docs/stable/generated/torch.nn.Module.html>`
+    `torch.nn.Module <https://pytorch.org/docs/stable/generated/torch.nn.Module.html>`_
     is not yet available.
-
-    :param log_every_n_epoch: parameter to log metrics once in `n` epoch. By default, metrics
+    :param log_every_n_epoch: If specified, logs metrics once every `n` epochs. By default, metrics
                        are logged after every epoch.
+    :param log_models: If ``True``, trained models are logged as MLflow model artifacts.
+                       If ``False``, trained models are not logged.
     """
     from mlflow.pytorch._pytorch_autolog import _autolog
 
-    _autolog(log_every_n_epoch=log_every_n_epoch)
+    _autolog(log_every_n_epoch=log_every_n_epoch, log_models=log_models)
