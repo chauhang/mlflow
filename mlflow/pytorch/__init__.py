@@ -36,7 +36,6 @@ from mlflow.utils.model_utils import _get_flavor_configuration
 from mlflow.tracking._model_registry import DEFAULT_AWAIT_MAX_SLEEP_SECONDS
 
 FLAVOR_NAME = "pytorch"
-STATE_DICT_FLAVOR_NAME = "pytorch_state_dict"
 
 _SERIALIZED_TORCH_MODEL_FILE_NAME = "model.pth"
 _PICKLE_MODULE_INFO_FILE_NAME = "pickle_module_info.txt"
@@ -306,13 +305,11 @@ def log_state_dict(state_dict, artifact_path, pickle_module=None, **kwargs):
             scripted_pytorch_model = torch.jit.script(model)
             mlflow.pytorch.log_state_dict(scripted_pytorch_model, "models")
     """
-    from mlflow.pytorch import pytorch_state_dict
-
     pickle_module = pickle_module or mlflow_pytorch_pickle_module
     Model.log(
         artifact_path=artifact_path,
-        flavor=pytorch_state_dict,
-        state_dict=state_dict,
+        flavor=mlflow.pytorch,
+        pytorch_model=state_dict,
         pickle_module=pickle_module,
         **kwargs,
     )
@@ -328,15 +325,39 @@ def save_state_dict(state_dict, path, mlflow_model=None, pickle_module=None, **k
     :param path: Local path where the model is to be saved.
     :param kwargs: kwargs to pass to ``torch.save`` method.
     """
-    from mlflow.pytorch.pytorch_state_dict import save_model
+    pickle_module = pickle_module or mlflow_pytorch_pickle_module
 
-    save_model(
-        state_dict=state_dict,
-        path=path,
-        mlflow_model=mlflow_model,
-        pickle_module=pickle_module,
-        **kwargs,
+    import torch
+
+    if mlflow_model is None:
+        mlflow_model = Model()
+
+    os.makedirs(path)
+
+    model_data_subpath = "data"
+    model_data_path = os.path.join(path, model_data_subpath)
+    os.makedirs(model_data_path)
+
+    pickle_module_path = os.path.join(model_data_path, _PICKLE_MODULE_INFO_FILE_NAME)
+    with open(pickle_module_path, "w") as f:
+        f.write(pickle_module.__name__)
+
+    model_path = os.path.join(model_data_path, _SERIALIZED_TORCH_MODEL_FILE_NAME)
+    torch.save(state_dict, model_path, pickle_module=pickle_module, **kwargs)
+
+    mlflow_model.add_flavor(
+        FLAVOR_NAME,
+        model_data=model_data_subpath,
+        pytorch_version=torch.__version__,
+        state_dict=True,
     )
+    pyfunc.add_to_model(
+        mlflow_model,
+        loader_module="mlflow.pytorch",
+        data=model_data_subpath,
+        pickle_module_name=pickle_module.__name__,
+    )
+    mlflow_model.save(os.path.join(path, MLMODEL_FILE_NAME))
 
 
 def save_model(
@@ -466,6 +487,16 @@ def save_model(
 
     pickle_module = pickle_module or mlflow_pytorch_pickle_module
 
+    if isinstance(pytorch_model, OrderedDict):
+        save_state_dict(
+            state_dict=pytorch_model,
+            path=path,
+            mlflow_model=mlflow_model,
+            pickle_module=pickle_module,
+            **kwargs,
+        )
+        return
+
     if not isinstance(pytorch_model, torch.nn.Module):
         raise TypeError("Argument 'pytorch_model' should be a torch.nn.Module")
     if code_paths is not None:
@@ -555,6 +586,7 @@ def save_model(
         model_data=model_data_subpath,
         pytorch_version=torch.__version__,
         **torchserve_artifacts_config,
+        state_dict=False,
     )
     pyfunc.add_to_model(
         mlflow_model,
@@ -728,12 +760,7 @@ def _get_model_artifact_path(model_uri, state_dict=False):
             code_path=os.path.join(local_model_path, code_subpath)
         )
 
-    if state_dict:
-        flavor_name = STATE_DICT_FLAVOR_NAME
-    else:
-        flavor_name = FLAVOR_NAME
-
-    pytorch_conf = _get_flavor_configuration(model_path=local_model_path, flavor_name=flavor_name)
+    pytorch_conf = _get_flavor_configuration(model_path=local_model_path, flavor_name=FLAVOR_NAME)
     if torch.__version__ != pytorch_conf["pytorch_version"]:
         _logger.warning(
             "Stored model version '%s' does not match installed PyTorch version '%s'",
