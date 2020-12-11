@@ -25,14 +25,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class CNN(nn.Module):
     def __init__(
-        self,
-        vocab_size,
-        embedding_dim,
-        n_filters,
-        filter_sizes,
-        output_dim,
-        dropout,
-        pad_idx,
+        self, vocab_size, embedding_dim, n_filters, filter_sizes, output_dim, dropout, pad_idx
     ):
         super().__init__()
 
@@ -40,11 +33,7 @@ class CNN(nn.Module):
 
         self.convs = nn.ModuleList(
             [
-                nn.Conv2d(
-                    in_channels=1,
-                    out_channels=n_filters,
-                    kernel_size=(fs, embedding_dim),
-                )
+                nn.Conv2d(in_channels=1, out_channels=n_filters, kernel_size=(fs, embedding_dim))
                 for fs in filter_sizes
             ]
         )
@@ -95,8 +84,6 @@ def count_model_parameters(model):
         param = parameter.nonzero(as_tuple=False).size(0)
         table.add_row([name, param])
         total_params += param
-    print(table)
-    print(f"Total Trainable Params: {total_params}")
     return table, total_params
 
 
@@ -181,24 +168,14 @@ def interpret_sentence(model, sentence, min_len=7, label=0):
     pred_ind = round(pred)
 
     # generate reference indices for each sample
-    reference_indices = token_reference.generate_reference(
-        seq_length, device=device
-    ).unsqueeze(0)
+    reference_indices = token_reference.generate_reference(seq_length, device=device).unsqueeze(0)
 
     # compute attributions and approximation delta using layer integrated gradients
     attributions_ig, delta = lig.attribute(
         input_indices, reference_indices, n_steps=500, return_convergence_delta=True
     )
 
-    print(
-        "pred: ",
-        Label.vocab.itos[pred_ind],
-        "(",
-        "%.2f" % pred,
-        ")",
-        ", delta: ",
-        abs(delta),
-    )
+    print("pred: ", Label.vocab.itos[pred_ind], "(", "%.2f" % pred, ")", ", delta: ", abs(delta))
 
     add_attributions_to_visualizer(
         attributions_ig, text, pred, pred_ind, label, delta, vis_data_records_ig
@@ -278,9 +255,7 @@ visualization.visualize_text(vis_data_records_ig)
 for i in range(0, len(vis_data_records_ig)):
     input_string = " ".join(vis_data_records_ig[i].raw_input)
     score = vis_data_records_ig[i].attr_score
-    try_mlflow_log(
-        mlflow.log_metric, "Attribution Score" + str(i), float(score), step=i
-    )
+    try_mlflow_log(mlflow.log_metric, "Attribution Score" + str(i), float(score), step=i)
 
 
 mlflow.end_run()
