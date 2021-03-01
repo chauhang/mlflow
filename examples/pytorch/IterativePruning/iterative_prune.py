@@ -8,7 +8,6 @@ import copy
 import tempfile
 
 import mlflow.pytorch
-import time
 import shutil
 from ax.service.ax_client import AxClient
 from mlflow.entities import ViewType
@@ -16,7 +15,7 @@ from mlflow.tracking import MlflowClient
 from mlflow.utils.autologging_utils import try_mlflow_log
 from prettytable import PrettyTable
 from torch.nn.utils import prune
-import alexnet as classifier
+from examples.pytorch.MNIST.example2.mnist_autolog_example2 import MNISTDataModule, LightningMNISTClassifier
 import torch
 import pytorch_lightning as pl
 import argparse
@@ -112,6 +111,8 @@ def iterative_prune(model, parametrization, trainer, dm, testloader, iteration_c
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser = pl.Trainer.add_argparse_args(parent_parser=parser)
+    parser = LightningMNISTClassifier.add_model_specific_args(parent_parser=parser)
+
 
     parser.add_argument(
         "--mlflow_experiment_name",
@@ -143,20 +144,26 @@ if __name__ == "__main__":
     else:
         tracking_uri = "http://localhost:5000/"
 
+    if "max_epochs" in args:
+        max_epochs = int(args.max_epochs)
+    else:
+        max_epochs = 5
+
     mlflow.tracking.set_tracking_uri(tracking_uri)
     client = MlflowClient(tracking_uri)
 
     identifier = client.get_experiment_by_name(mlflow_experiment_name)
     mlflow.set_experiment(mlflow_experiment_name)
     runs = client.search_runs(
-        experiment_ids=identifier.experiment_id, run_view_type=ViewType.ACTIVE_ONLY
+        experiment_ids=identifier.experiment_id, run_view_type=ViewType.ACTIVE_ONLY, filter_string="tags.Mode ILIKE 'training'"
     )[0]
     runs_dict = dict(runs)
     run_id = runs_dict.get("info").run_id
     artifact_uri = runs_dict.get("info").artifact_uri
 
     model = load_model(artifact_uri)
-    dm = classifier.DataModule()
+    dict_args = vars(args)
+    dm = MNISTDataModule(**dict_args)
     dm.setup("fit")
     testloader = dm.setup("test")
 
@@ -180,7 +187,7 @@ if __name__ == "__main__":
             with mlflow.start_run(nested=True, run_name="Iteration" + str(i)) as child_run:
                 mlflow.set_tags({"AX_TRIAL": k})
 
-                trainer = pl.Trainer(max_epochs=int(args.max_epochs))
+                trainer = pl.Trainer(max_epochs=max_epochs)
 
                 # calling the model
                 test_accuracy = iterative_prune(model, parameters, trainer, dm, testloader, i)
