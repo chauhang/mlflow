@@ -9,7 +9,7 @@ To run the example via MLflow, navigate to the `mlflow/examples/pytorch/CaptumEx
 mlflow run .
 ```
 
-This will run `Titanic_Captum_Interpret.py` with the default set of parameters such as  `--max_epochs=100` and --use_pretrained_model False. You can see the default value in the `MLproject` file.
+This will run `Titanic_Captum_Interpret.py` with the default set of parameters such as  `--max_epochs=100` and `--use_pretrained_model False`. You can see the default value in the `MLproject` file.
 
 In order to run the file with custom parameters, run the command
 
@@ -44,7 +44,7 @@ The parameters can be overridden via the command line:
 
 1. max_epochs - Number of epochs to train model. Training can be interrupted early via Ctrl+C
 2. lr - Learning rate
-3. use_pretrained_model
+3. use_pretrained_model - If want to use pretrained model
 
 For example:
 ```
@@ -55,7 +55,7 @@ Or to run the training script directly with custom parameters:
 ```
 python Titanic_Captum_Interpret.py \
     --max_epochs 50 \
-    --lr 0.001
+    --lr 0.1
 ```
 
 
