@@ -56,6 +56,7 @@ def replace_mlflow_with_dev_version(yml_path):
             ["-P", "learning_rate=0.3", "-P", "colsample_bytree=0.8", "-P", "subsample=0.9"],
         ),
         ("fastai", ["-P", "lr=0.02", "-P", "epochs=3"]),
+        (os.path.join("pytorch", "Semantic-Segmentation"), ["-P", "img_url=https://farm8.staticflickr.com/7301/8862358875_eecba9fb10_z.jpg"]),
     ],
 )
 def test_mlflow_run_example(directory, params, tmpdir):
