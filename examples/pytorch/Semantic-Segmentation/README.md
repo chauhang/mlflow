@@ -1,6 +1,6 @@
 #Semantic Segmentation with Captum and MLflow
 
-In this example, we demonstrate applying Captum to semantic segmentation task, to understand what pixels and regions contribute to the labeling of a particular class. We explore applying GradCAM as well as Feature Ablation to a pretrained Fully-Convolutional Network model with a ResNet-101 backbone.
+In this example, we demonstrate applying Captum to semantic segmentation task, to understand what pixels and regions contribute to the labeling of a particular class. We explore applying GradCAM as well as Feature Ablation to a pretrained Fully-Convolutional Network model with a ResNet-101 backbone. You can find more details [here][https://captum.ai/tutorials/Segmentation_Interpret]
 
 
 ### Running the code
