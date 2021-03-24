@@ -677,13 +677,19 @@ def load_model(model_uri, **kwargs):
     return _load_model(path=torch_model_artifacts_path, **kwargs)
 
 
-def _load_pyfunc(path, **kwargs):
+def _load_pyfunc(path, validate_signature=False, **kwargs):
     """
     Load PyFunc implementation. Called by ``pyfunc.load_pyfunc``.
 
     :param path: Local filesystem path to the MLflow Model with the ``pytorch`` flavor.
     """
-    return _PyTorchWrapper(_load_model(path, **kwargs))
+    pytorch_model = _load_model(path, **kwargs)
+    mlmodel_file_path = None
+    if validate_signature:
+        mlmodel_file_path = os.path.join(os.path.dirname(path), MLMODEL_FILE_NAME)
+        if not os.path.exists(mlmodel_file_path):
+            raise Exception("MLmodel file not found")
+    return _PyTorchWrapper(pytorch_model=pytorch_model, mlmodel_file_path=mlmodel_file_path)
 
 
 class _PyTorchWrapper(object):
@@ -692,8 +698,9 @@ class _PyTorchWrapper(object):
     predict(data: pd.DataFrame) -> model's output as pd.DataFrame (pandas DataFrame)
     """
 
-    def __init__(self, pytorch_model):
+    def __init__(self, pytorch_model, mlmodel_file_path=None):
         self.pytorch_model = pytorch_model
+        self.mlmodel_file_path = mlmodel_file_path
 
     def predict(self, data, device="cpu"):
         import torch
@@ -709,6 +716,16 @@ class _PyTorchWrapper(object):
             )
         else:
             raise TypeError("Input data should be pandas.DataFrame or numpy.ndarray")
+
+        if self.mlmodel_file_path:
+            mlmodel = Model.load(self.mlmodel_file_path)
+            if not hasattr(mlmodel, "signature"):
+                raise Exception("Model Signature not found")
+
+            input_schema = mlmodel.get_input_schema()
+
+            from mlflow.pyfunc import _enforce_schema
+            _enforce_schema(data, input_schema)
 
         self.pytorch_model.to(device)
         self.pytorch_model.eval()
