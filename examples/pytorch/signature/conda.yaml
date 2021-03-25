@@ -1,0 +1,14 @@
+channels:
+- defaults
+- conda-forge
+- pytorch
+dependencies:
+- python=3.8.2
+- pytorch>=1.6.0
+- torchvision
+- pip
+- pip:
+  - scikit-learn
+  - pytorch-lightning>=1.2.3
+  - git+https://github.com/chauhang/mlflow.git@iris-model-signature
+
