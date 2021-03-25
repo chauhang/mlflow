@@ -237,10 +237,14 @@ if __name__ == "__main__":
 
     model = _load_pyfunc(path="model/data", validate_signature=True)
     df = pd.read_json("sample.json")
-    print("Result with correct Input: ", model.predict(df))
+    print("Result: ", model.predict(df))
 
-    for column in df.columns:
-        df[column] = df[column].astype("str")
+    # Uncomment this block to check invalid data type enforcement
+    # for column in df.columns:
+    #     df[column] = df[column].astype("str")
+    #
+    # print("Result with invalid datatype: ", model.predict(df))
 
-    print("Result with invalid datatype: ", model.predict(df))
-
+    # Uncomment this block to check invalid column name enforcement
+    # df.columns = ["sepal_length", "sepal_width", "petal_length", "petal_width"]
+    # print("Result with invalid column name: ", model.predict(df))
