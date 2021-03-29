@@ -1,0 +1,17 @@
+name: Sementic-Segmentation-Captum
+
+conda_env: conda.yaml
+
+entry_points:
+  main:
+    parameters:
+      img_url: {type: string, default: "https://farm8.staticflickr.com/7301/8862358875_eecba9fb10_z.jpg"}
+      target: {type: int, default: 6}
+
+    command: |
+          python segmentation.py \
+            --img_url {img_url} \
+            --target  {target} 
+            
+           
+            
