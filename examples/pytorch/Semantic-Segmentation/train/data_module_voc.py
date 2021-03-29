@@ -10,7 +10,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class VOCDataModule(LightningDataModule):
     def __init__(self, **kwargs):
         super().__init__()
-        self.shuffle = True
         self.pin_memory = True
         self.ignore_label = 250
         self.batch_size = 16
@@ -54,17 +53,15 @@ class VOCDataModule(LightningDataModule):
             metavar="N",
             help="number of workers (default: 0)",
         )
+        parser.add_argument('--random_sample', action='store_true', 
+            default=True, help='whether to sample the dataset with random sampler')
 
         return parser
 
-    def create_data_loader(self, ds, num_workers, batch_size, shuffle, pin_memory):
-        return DataLoader(ds, batch_size, num_workers, shuffle, pin_memory)
-
     def train_dataloader(self):
-        train_data_loader = self.create_data_loader(
+        train_data_loader = DataLoader(
             self.train_set,
             batch_size=self.batch_size,
-            shuffle=self.shuffle,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
         )

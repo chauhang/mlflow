@@ -66,7 +66,7 @@ class VocSemSegment(pl.LightningModule):
         )
         return parser
 
-    def training_step(self, batch):
+    def training_step(self, batch,batch_idx):
         img, mask = batch
         img = img.float().to(device)
         mask = mask.long().to(device)
@@ -77,7 +77,7 @@ class VocSemSegment(pl.LightningModule):
         self.log("loss", train_loss, on_step=True, on_epoch=True)
         return {"loss": train_loss}
 
-    def validation_step(self, batch):
+    def validation_step(self, batch,batch_idx):
         img, mask = batch
         img = img.float().to(device)
         mask = mask.long().to(device)
