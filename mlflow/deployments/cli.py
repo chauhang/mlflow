@@ -279,4 +279,3 @@ def explain(target, name, input_path, output_path):
             predictions_to_json(result, fp)
     else:
         predictions_to_json(result, sys.stdout)
-
